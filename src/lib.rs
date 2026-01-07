@@ -30,13 +30,13 @@ pub struct Object {
     material: Option<String>,
     mtllib: Option<PathBuf>,
     groups: Vec<String>,
-    smoothing_group: u32,
+    smoothing: u32,
     faces: Vec<Face>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Face {
     vertex: [usize; 3],
-    normal: [usize; 3],
-    texture: [usize; 3],
+    normal: Option<[usize; 3]>,
+    texture: Option<[usize; 3]>,
 }

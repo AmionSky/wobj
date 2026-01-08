@@ -14,13 +14,21 @@ pub struct Obj {
 }
 
 impl Obj {
-    pub fn parse<P: AsRef<Path>>(file: P) {
+    pub fn parse<P: AsRef<Path>>(file: P) -> Result<Self, Box<dyn std::error::Error>> {
         let obj = std::fs::read(file).unwrap();
 
         match parse_obj.parse(BStr::new(&obj)) {
-            Ok(obj) => println!("OBJ: {obj:?}"),
-            Err(error) => eprintln!("Error: {error}"),
+            Ok(obj) => Ok(obj),
+            Err(error) => { eprintln!("{error}"); Err("error".into()) },
         }
+    }
+
+    pub fn objects(&self) -> &[Object] {
+        &self.objects
+    }
+
+    pub fn vertecies(&self) -> &[[f32; 3]] {
+        &self.vertex
     }
 }
 
@@ -32,6 +40,16 @@ pub struct Object {
     groups: Vec<String>,
     smoothing: u32,
     faces: Vec<Face>,
+}
+
+impl Object {
+    pub fn name(&self) -> Option<&String> {
+        self.name.as_ref()
+    }
+
+    pub fn faces(&self) -> Vec<[usize; 3]> {
+        self.faces.iter().map(|f| f.vertex).collect()
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

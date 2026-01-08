@@ -48,15 +48,21 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                     .parse_next(input)?,
             ),
             KEYWORD_GROUP => {
-                current.groups = parse_groups.parse_next(input)?;
+                current.groups = parse_groups
+                    .context(StrContext::Label("attribute group"))
+                    .parse_next(input)?;
                 check_finalize(&mut current, &mut obj);
             }
             KEYWORD_SMOOTHING => {
-                current.smoothing = parse_smoothing.parse_next(input)?;
+                current.smoothing = parse_smoothing
+                    .context(StrContext::Label("attribute smoothing group"))
+                    .parse_next(input)?;
                 check_finalize(&mut current, &mut obj);
             }
             KEYWORD_OBJECT => {
-                let name = parse_string.parse_next(input)?;
+                let name = parse_string
+                    .context(StrContext::Label("attribute object name"))
+                    .parse_next(input)?;
                 match name.is_empty() {
                     true => current.name = None,
                     false => current.name = Some(name),
@@ -64,11 +70,17 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                 check_finalize(&mut current, &mut obj);
             }
             KEYWORD_MTLLIB => {
-                current.mtllib = Some(parse_mtllib.parse_next(input)?);
+                current.mtllib = Some(
+                    parse_mtllib
+                        .context(StrContext::Label("attribute mtllib"))
+                        .parse_next(input)?,
+                );
                 check_finalize(&mut current, &mut obj);
             }
             KEYWORD_MATERIAL => {
-                let material = parse_string.parse_next(input)?;
+                let material = parse_string
+                    .context(StrContext::Label("attribute material"))
+                    .parse_next(input)?;
                 match material.is_empty() {
                     true => current.material = None,
                     false => current.material = Some(material),
@@ -77,10 +89,15 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
             }
             _ => {
                 // Ignoring unknown keywords
-                till_line_ending.parse_next(input)?;
+                till_line_ending
+                    .context(StrContext::Label("unknown keyword"))
+                    .parse_next(input)?;
             }
         }
-        (till_line_ending, line_ending).void().parse_next(input)?;
+        (till_line_ending, line_ending)
+            .void()
+            .context(StrContext::Label("next line"))
+            .parse_next(input)?;
     }
 
     if !current.faces.is_empty() {

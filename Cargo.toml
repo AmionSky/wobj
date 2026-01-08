@@ -5,3 +5,6 @@ edition = "2024"
 
 [dependencies]
 winnow = "0.7.14"
+
+[dev-dependencies]
+kiss3d = "0.39.1"

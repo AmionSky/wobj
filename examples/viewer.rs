@@ -23,23 +23,33 @@ async fn main() {
 }
 
 fn render_obj(scene: &mut SceneNode3d, path: &str) {
-    /*let obj = Obj::parse(path).unwrap();
-
-    let coords: Vec<_> = obj
-        .vertecies()
-        .iter()
-        .map(|v| Vec3::new(v[0], v[1], v[2]))
-        .collect();
+    let obj = Obj::parse(path).unwrap();
 
     for object in obj.objects() {
-        let faces = object
-            .faces()
-            .iter()
+        let (indices, vertices) = obj.mesh(object.faces());
+
+        let faces = indices
+            .0
+            .chunks_exact(3)
             .map(|f| [f[0] as u32, f[1] as u32, f[2] as u32])
             .collect();
 
-        let mesh = GpuMesh3d::new(coords.clone(), faces, None, None, false);
+        let coords = vertices
+            .positions
+            .into_iter()
+            .map(Vec3::from_array)
+            .collect();
+
+        let normals = vertices
+            .normals
+            .map(|a| a.into_iter().map(Vec3::from_array).collect());
+
+        let uvs = vertices
+            .uvs
+            .map(|a| a.into_iter().map(Vec2::from_array).collect());
+
+        let mesh = GpuMesh3d::new(coords, faces, normals, uvs, false);
 
         scene.add_mesh(Rc::new(RefCell::new(mesh)), Vec3::ONE);
-    }*/
+    }
 }

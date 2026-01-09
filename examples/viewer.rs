@@ -23,7 +23,7 @@ async fn main() {
 }
 
 fn render_obj(scene: &mut SceneNode3d, path: &str) {
-    let obj = Obj::parse(path).unwrap();
+    /*let obj = Obj::parse(path).unwrap();
 
     let coords: Vec<_> = obj
         .vertecies()
@@ -41,5 +41,5 @@ fn render_obj(scene: &mut SceneNode3d, path: &str) {
         let mesh = GpuMesh3d::new(coords.clone(), faces, None, None, false);
 
         scene.add_mesh(Rc::new(RefCell::new(mesh)), Vec3::ONE);
-    }
+    }*/
 }

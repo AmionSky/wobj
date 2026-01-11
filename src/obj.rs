@@ -103,8 +103,9 @@ fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
 }
 
 fn parse_float3(input: &mut &BStr) -> Result<[f32; 3]> {
-    let (x, _, y, _, z) = seq!(float, ' ', float, ' ', float).parse_next(input)?;
-    Ok([x, y, z])
+    (float, ' ', float, ' ', float)
+        .map(|(x, _, y, _, z)| [x, y, z])
+        .parse_next(input)
 }
 
 fn parse_vt(input: &mut &BStr) -> Result<[f32; 2]> {

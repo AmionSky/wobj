@@ -1,13 +1,11 @@
 use std::path::PathBuf;
 
-use winnow::ascii::{float, line_ending, till_line_ending};
-use winnow::combinator::{alt, delimited, opt, preceded, repeat, terminated};
-use winnow::error::{StrContext, StrContextValue};
-use winnow::stream::AsChar;
-use winnow::token::{take_till, take_while};
+use winnow::ascii::{float, till_line_ending};
+use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated_pair, terminated};
 use winnow::{BStr, Result, prelude::*};
 
 use super::{ColorValue, Material};
+use crate::util::{expected, label, to_next_line, word};
 
 pub(crate) fn parse_mtl(input: &mut &BStr) -> Result<Vec<Material>> {
     repeat(0.., parse_material).parse_next(input)
@@ -16,7 +14,7 @@ pub(crate) fn parse_mtl(input: &mut &BStr) -> Result<Vec<Material>> {
 fn parse_material(input: &mut &BStr) -> Result<Material> {
     let mut material = Material::new(parse_name.parse_next(input)?);
 
-    while let Ok(key) = keyword.parse_next(input) {
+    while let Ok(key) = keyword(input) {
         match key {
             b"Ka" => {
                 material.ambient = Some(
@@ -49,32 +47,21 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
             _ => (),
         }
 
-        // Go to next line
-        to_next_line.parse_next(input)?;
+        to_next_line(input)?;
     }
 
     Ok(material)
 }
 
-fn to_next_line(input: &mut &BStr) -> Result<()> {
-    (till_line_ending, opt(line_ending))
-        .void()
+fn parse_name(input: &mut &BStr) -> Result<String> {
+    delimited("newmtl ", word, to_next_line)
+        .try_map(|s| String::from_utf8(s.to_vec()))
+        .context(label("newmtl"))
         .parse_next(input)
 }
 
-fn parse_name(input: &mut &BStr) -> Result<String> {
-    delimited(
-        "newmtl ",
-        take_till(1.., (' ', '\t', '\r', '\n')),
-        (till_line_ending, line_ending),
-    )
-    .try_map(|s: &[u8]| String::from_utf8(s.to_vec()))
-    .context(label("newmtl"))
-    .parse_next(input)
-}
-
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
-    terminated(take_while(1.., AsChar::is_alphanum), ' ')
+    terminated(word, ' ')
         .verify(|k: &[_]| k != b"newmtl")
         .context(label("keyword"))
         .parse_next(input)
@@ -111,32 +98,18 @@ fn parse_xyz(input: &mut &BStr) -> Result<ColorValue> {
 }
 
 fn parse_spectral(input: &mut &BStr) -> Result<ColorValue> {
-    let (path, factor) = alt((
+    let (file, factor) = alt((
         // With factor
-        (
-            take_till(1.., (' ', '\t', '\r', '\n')),
-            ' ',
-            float,
-            take_till(0.., ('\r', '\n')),
-        )
-            .map(|(path, _, factor, _)| (path, factor)),
+        separated_pair(word, ' ', float),
         // Without factor
-        (till_line_ending).map(|f| (f, 1.0)),
+        till_line_ending.map(|file| (file, 1.0)),
     ))
-    // Convert path bytes to str
-    .verify_map(|(path, factor)| str::from_utf8(path).map(|s| (s, factor)).ok())
+    // Convert file str to path
+    .try_map(|(file, factor)| {
+        str::from_utf8(file)
+            .map(|s| (PathBuf::from(s), factor))
+    })
     .parse_next(input)?;
 
-    Ok(ColorValue::Spectral {
-        file: PathBuf::from(path),
-        factor,
-    })
-}
-
-fn label(text: &'static str) -> StrContext {
-    StrContext::Label(text)
-}
-
-fn expected(text: &'static str) -> StrContext {
-    StrContext::Expected(StrContextValue::StringLiteral(text))
+    Ok(ColorValue::Spectral { file, factor })
 }

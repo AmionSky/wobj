@@ -2,14 +2,12 @@ use std::num::NonZero;
 use std::path::PathBuf;
 
 use smallvec::SmallVec;
-use winnow::ascii::{dec_int, dec_uint, float, line_ending, till_line_ending};
+use winnow::ascii::{dec_int, dec_uint, float, till_line_ending};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated};
-use winnow::error::{StrContext, StrContextValue};
-use winnow::stream::AsChar;
-use winnow::token::{take_till, take_while};
 use winnow::{BStr, Result, prelude::*};
 
 use super::{Face, FacePoint, Obj, Object};
+use crate::util::{description, label, to_next_line, word};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     let mut obj = Obj::default();
@@ -22,41 +20,41 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
         }
     }
 
-    while let Ok(key) = keyword.parse_next(input) {
+    while let Ok(key) = keyword(input) {
         match key {
             b"v" => obj.vertex.push(
                 parse_float3
-                    .context(StrContext::Label("vertex geometry"))
+                    .context(label("vertex geometry"))
                     .parse_next(input)?,
             ),
             b"vn" => obj.normal.push(
                 parse_float3
-                    .context(StrContext::Label("vertex normal"))
+                    .context(label("vertex normal"))
                     .parse_next(input)?,
             ),
             b"vt" => obj.texture.push(
                 parse_vt
-                    .context(StrContext::Label("vertex texture"))
+                    .context(label("vertex texture"))
                     .parse_next(input)?,
             ),
             b"f" => current.faces.push(parse_face(input, &obj)?),
             b"g" => {
                 check_finalize(&mut current, &mut obj);
                 current.groups = parse_groups
-                    .context(StrContext::Label("attribute group"))
+                    .context(label("attribute group"))
                     .parse_next(input)?;
             }
             b"s" => {
                 check_finalize(&mut current, &mut obj);
                 current.smoothing = parse_smoothing
-                    .context(StrContext::Label("attribute smoothing group"))
+                    .context(label("attribute smoothing group"))
                     .parse_next(input)?;
             }
             b"o" => {
                 check_finalize(&mut current, &mut obj);
                 current.name = Some(
                     parse_string
-                        .context(StrContext::Label("attribute object name"))
+                        .context(label("attribute object name"))
                         .parse_next(input)?,
                 );
             }
@@ -64,7 +62,7 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                 check_finalize(&mut current, &mut obj);
                 current.mtllib = Some(
                     parse_path
-                        .context(StrContext::Label("attribute mtllib"))
+                        .context(label("attribute mtllib"))
                         .parse_next(input)?,
                 );
             }
@@ -72,17 +70,14 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                 check_finalize(&mut current, &mut obj);
                 current.material = Some(
                     parse_string
-                        .context(StrContext::Label("attribute material"))
+                        .context(label("attribute material"))
                         .parse_next(input)?,
                 );
             }
             _ => (), // Skip unknown keywords
         }
 
-        // Go to next line
-        (till_line_ending, opt(line_ending))
-            .void()
-            .parse_next(input)?;
+        to_next_line(input)?;
     }
 
     if !current.faces.is_empty() {
@@ -93,12 +88,12 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
 }
 
 fn comment(input: &mut &BStr) -> Result<()> {
-    repeat(0.., ('#', till_line_ending, line_ending).void()).parse_next(input)
+    repeat(0.., ('#', to_next_line).void()).parse_next(input)
 }
 
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
-    delimited(comment, take_while(1.., AsChar::is_alphanum), ' ')
-        .context(StrContext::Label("keyword"))
+    delimited(comment, word, ' ')
+        .context(label("keyword"))
         .parse_next(input)
 }
 
@@ -115,7 +110,7 @@ fn parse_vt(input: &mut &BStr) -> Result<[f32; 2]> {
 
 fn parse_face(input: &mut &BStr, obj: &Obj) -> Result<Face> {
     let points: Vec<_> = separated(3.., parse_face_point, ' ')
-        .context(StrContext::Label("element face"))
+        .context(label("element face"))
         .parse_next(input)?;
 
     fn calc_index(i: NonZero<isize>, len: usize) -> usize {
@@ -158,7 +153,7 @@ fn parse_face_point(input: &mut &BStr) -> Result<FacePoint<NonZero<isize>>> {
 fn parse_groups(input: &mut &BStr) -> Result<Vec<String>> {
     separated(
         1..,
-        take_till(1.., (' ', '\r', '\n')).map(|g| String::from_utf8_lossy(g).to_string()),
+        word.try_map(|s: &[_]| String::from_utf8(s.to_vec())),
         ' ',
     )
     .parse_next(input)
@@ -172,10 +167,8 @@ fn parse_smoothing(input: &mut &BStr) -> Result<u32> {
 fn parse_string(input: &mut &BStr) -> Result<String> {
     till_line_ending
         .verify(|s: &[_]| !s.is_empty())
-        .verify_map(|s: &[_]| String::from_utf8(s.to_vec()).ok())
-        .context(StrContext::Expected(StrContextValue::Description(
-            "UTF-8 string",
-        )))
+        .try_map(|s: &[_]| String::from_utf8(s.to_vec()))
+        .context(description("UTF-8 string"))
         .parse_next(input)
 }
 
@@ -183,9 +176,7 @@ fn parse_string(input: &mut &BStr) -> Result<String> {
 fn parse_path(input: &mut &BStr) -> Result<PathBuf> {
     parse_string
         .map(PathBuf::from)
-        .context(StrContext::Expected(StrContextValue::Description(
-            "filesystem path",
-        )))
+        .context(description("filesystem path"))
         .parse_next(input)
 }
 

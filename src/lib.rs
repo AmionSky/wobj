@@ -1,3 +1,4 @@
+mod mtl;
 mod obj;
 
 use std::path::{Path, PathBuf};
@@ -128,3 +129,17 @@ struct FacePoint<T> {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Face(SmallVec<[FacePoint<usize>; 4]>);
+
+pub fn parse_mtl<P: AsRef<Path>>(
+    file: P,
+) -> Result<Vec<mtl::Material>, Box<dyn std::error::Error>> {
+    let mtl = std::fs::read(file).unwrap();
+
+    match mtl::parse_mtl.parse(BStr::new(&mtl)) {
+        Ok(mtl) => Ok(mtl),
+        Err(error) => {
+            eprintln!("{error}");
+            Err("error".into())
+        }
+    }
+}

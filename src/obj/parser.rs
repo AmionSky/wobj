@@ -3,13 +3,13 @@ use std::path::PathBuf;
 
 use smallvec::SmallVec;
 use winnow::ascii::{dec_int, dec_uint, float, line_ending, till_line_ending};
-use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated, seq};
+use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated};
 use winnow::error::{StrContext, StrContextValue};
 use winnow::stream::AsChar;
 use winnow::token::{take_till, take_while};
 use winnow::{BStr, Result, prelude::*};
 
-use crate::{Face, FacePoint, Obj, Object};
+use super::{Face, FacePoint, Obj, Object};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     let mut obj = Obj::default();

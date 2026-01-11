@@ -7,36 +7,7 @@ use winnow::stream::AsChar;
 use winnow::token::{take_till, take_while};
 use winnow::{BStr, Result, prelude::*};
 
-pub struct Material {
-    pub name: String,
-    /// (Ka) ambient reflectivity
-    pub ambient: Option<ColorValue>,
-    /// (Kd) diffuse reflectivity
-    pub diffuse: Option<ColorValue>,
-    /// (Ks) specular reflectivity
-    pub specular: Option<ColorValue>,
-    /// (Tf) transmission filter
-    pub filter: Option<ColorValue>,
-}
-
-impl Material {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            ambient: None,
-            diffuse: None,
-            specular: None,
-            filter: None,
-        }
-    }
-}
-
-#[allow(clippy::upper_case_acronyms)]
-pub enum ColorValue {
-    RGB(f32, f32, f32),
-    XYZ(f32, f32, f32),
-    Spectral { file: PathBuf, factor: f32 },
-}
+use super::{ColorValue, Material};
 
 pub(crate) fn parse_mtl(input: &mut &BStr) -> Result<Vec<Material>> {
     repeat(0.., parse_material).parse_next(input)

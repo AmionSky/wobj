@@ -10,4 +10,4 @@ indexmap = "2.13.0"
 ahash = "0.8.12"
 
 [dev-dependencies]
-kiss3d = "0.39.1"
+kiss3d = "0.40.0"

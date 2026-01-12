@@ -2,11 +2,11 @@ use std::num::NonZero;
 
 use smallvec::SmallVec;
 use winnow::ascii::{dec_int, dec_uint, float};
-use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated};
+use winnow::combinator::{alt, delimited, opt, preceded, separated};
 use winnow::{BStr, Result, prelude::*};
 
 use super::{Face, FacePoint, Obj, Object};
-use crate::util::{label, parse_path, parse_string, to_next_line, word};
+use crate::util::{ignoreable, label, parse_path, parse_string, to_next_line, word};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     let mut obj = Obj::default();
@@ -86,12 +86,8 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     Ok(obj)
 }
 
-fn comment(input: &mut &BStr) -> Result<()> {
-    repeat(0.., ('#', to_next_line).void()).parse_next(input)
-}
-
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
-    delimited(comment, word, ' ')
+    delimited(ignoreable, word, ' ')
         .context(label("keyword"))
         .parse_next(input)
 }

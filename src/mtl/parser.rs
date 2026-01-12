@@ -8,10 +8,17 @@ use winnow::combinator::{
 use winnow::{BStr, Result, prelude::*};
 
 use super::{Channel, ColorValue, MapOption, Material, TextureMap};
-use crate::util::{expected, label, parse_path, to_next_line, word};
+use crate::util::{expected, ignoreable, label, parse_path, to_next_line, word};
 
 pub(crate) fn parse_mtl(input: &mut &BStr) -> Result<HashMap<String, Material>> {
-    repeat(0.., (parse_name, parse_material)).parse_next(input)
+    let mut materials = HashMap::new();
+
+    while let Ok(name) = parse_name(input) {
+        let material = parse_material(input)?;
+        materials.insert(name, material);
+    }
+
+    Ok(materials)
 }
 
 fn parse_material(input: &mut &BStr) -> Result<Material> {
@@ -153,14 +160,14 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
 }
 
 fn parse_name(input: &mut &BStr) -> Result<String> {
-    delimited("newmtl ", word, to_next_line)
+    delimited(ignoreable, preceded("newmtl ", word), to_next_line)
         .try_map(|s| String::from_utf8(s.to_vec()))
         .context(label("newmtl"))
         .parse_next(input)
 }
 
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
-    terminated(word, ' ')
+    delimited(ignoreable, word, ' ')
         .verify(|k: &[_]| k != b"newmtl")
         .context(label("keyword"))
         .parse_next(input)
@@ -211,7 +218,7 @@ fn parse_spectral(input: &mut &BStr) -> Result<ColorValue> {
 }
 
 fn parse_illum(input: &mut &BStr) -> Result<u8> {
-    preceded("illum_", dec_uint).parse_next(input)
+    alt((dec_uint, preceded("illum_", dec_uint))).parse_next(input)
 }
 
 fn parse_dissolve(input: &mut &BStr) -> Result<(f32, bool)> {
@@ -287,4 +294,17 @@ fn parse_relf(input: &mut &BStr) -> Result<(String, TextureMap)> {
         .parse_next(input)?;
     let map = parse_map.parse_next(input)?;
     Ok((shape, map))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_parsing() {
+        assert_eq!(parse_name(&mut BStr::new("newmtl Mat")).unwrap(), "Mat");
+        assert_eq!(parse_name(&mut BStr::new("\nnewmtl Mat")).unwrap(), "Mat");
+        assert_eq!(parse_name(&mut BStr::new("#C\nnewmtl Mat")).unwrap(), "Mat");
+        assert!(parse_name(&mut BStr::new("invalid newmtl")).is_err())
+    }
 }

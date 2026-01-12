@@ -3,9 +3,9 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub struct WobjError(String);
 
-impl<I, E: Display> From<winnow::error::ParseError<I, E>> for WobjError {
+impl<I: winnow::stream::AsBStr, E: Display> From<winnow::error::ParseError<I, E>> for WobjError {
     fn from(error: winnow::error::ParseError<I, E>) -> Self {
-        Self(error.inner().to_string())
+        Self(format!("{error}"))
     }
 }
 

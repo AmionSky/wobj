@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use winnow::ascii::{line_ending, till_line_ending};
-use winnow::combinator::opt;
+use winnow::ascii::{line_ending, multispace1, till_line_ending};
+use winnow::combinator::{alt, opt, preceded, repeat};
 use winnow::error::{StrContext, StrContextValue};
 use winnow::token::take_till;
 use winnow::{BStr, Parser, Result};
@@ -44,4 +44,12 @@ pub fn parse_path(input: &mut &BStr) -> Result<PathBuf> {
         .map(PathBuf::from)
         .context(description("filesystem path"))
         .parse_next(input)
+}
+
+fn comment(input: &mut &BStr) -> Result<()> {
+    preceded('#', to_next_line).void().parse_next(input)
+}
+
+pub fn ignoreable(input: &mut &BStr) -> Result<()> {
+    repeat(0.., alt((comment, multispace1.void()))).parse_next(input)
 }

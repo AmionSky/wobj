@@ -7,10 +7,32 @@ use winnow::{BStr, Parser};
 
 use crate::WobjError;
 
-pub fn parse_mtl(bytes: &[u8]) -> Result<HashMap<String, Material>, WobjError> {
-    parser::parse_mtl
-        .parse(BStr::new(bytes))
-        .map_err(WobjError::from)
+#[derive(Debug, Clone)]
+pub struct Mtl(HashMap<String, Material>);
+
+impl Mtl {
+    pub fn parse(bytes: &[u8]) -> Result<Self, WobjError> {
+        parser::parse_mtl
+            .parse(BStr::new(bytes))
+            .map_err(WobjError::from)
+            .map(Self::new)
+    }
+
+    fn new(materials: HashMap<String, Material>) -> Self {
+        Self(materials)
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Material> {
+        self.0.get(name)
+    }
+
+    pub fn inner(&self) -> &HashMap<String, Material> {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> HashMap<String, Material> {
+        self.0
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -25,8 +47,10 @@ pub struct Material {
     pub filter: Option<ColorValue>,
     /// (illum) illumination model
     pub illum: Option<u8>,
-    /// (d) dissolve (factor, halo)
-    pub dissolve: Option<(f32, bool)>,
+    /// (d/Tr) dissolve factor
+    pub dissolve: Option<f32>,
+    /// (d -halo) dissolve halo
+    pub halo: Option<bool>,
     /// (Ns) specular exponent
     pub exponent: Option<f32>,
     /// (sharpness) reflection sharpness
@@ -48,13 +72,41 @@ pub struct Material {
     pub decal_map: Option<TextureMap>,
     /// (disp) displacement texture
     pub disp_map: Option<TextureMap>,
-    /// (bump) bump texture
+    /// (bump/map_bump) bump texture
     pub bump_map: Option<TextureMap>,
     /// (map_aat) texture anti-aliasing
     pub aa_map: Option<bool>,
 
     /// (refl) reflection map (type, map)
     pub relf: Vec<(String, TextureMap)>,
+
+    /// (Pr) roughness
+    pub roughness: Option<f32>,
+    /// (Pm) metallic
+    pub metallic: Option<f32>,
+    /// (Ps) sheen
+    pub sheen: Option<f32>,
+    /// (Pc) clearcoat thickness
+    pub cc_thickness: Option<f32>,
+    /// (Pcr) clearcoat roughness
+    pub cc_roughness: Option<f32>,
+    /// (Ke) emissive
+    pub emissive: Option<f32>,
+    /// (aniso) anisotropy
+    pub anisotropy: Option<f32>,
+    /// (anisor) anisotropy rotation
+    pub anisotropy_rotation: Option<f32>,
+
+    /// (map_Pr) roughness texture
+    pub roughness_map: Option<TextureMap>,
+    /// (map_Pm) metallic texture
+    pub metallic_map: Option<TextureMap>,
+    /// (map_Ps) sheen texture
+    pub sheen_map: Option<TextureMap>,
+    /// (map_Ke) emissive texture
+    pub emissive_map: Option<TextureMap>,
+    /// (norm) normal texture
+    pub normal_map: Option<TextureMap>,
 }
 
 #[derive(Debug, Clone)]

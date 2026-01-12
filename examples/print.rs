@@ -24,7 +24,7 @@ fn main() {
     let parent = path.parent().unwrap();
     for mtllib in mtllibs {
         let mtl_file = std::fs::read(parent.join(mtllib)).unwrap();
-        let mtl = wobj::parse_mtl(&mtl_file);
+        let mtl = wobj::Mtl::parse(&mtl_file);
         match mtl {
             Ok(mtl) => println!("MTL: {mtl:#?}"),
             Err(error) => eprintln!("MTL: {error}"),

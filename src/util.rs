@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use winnow::ascii::{line_ending, till_line_ending};
 use winnow::combinator::opt;
 use winnow::error::{StrContext, StrContextValue};
@@ -27,3 +29,19 @@ pub fn description(text: &'static str) -> StrContext {
     StrContext::Expected(StrContextValue::Description(text))
 }
 
+/// Parses a non-empty UTF-8 string
+pub fn parse_string(input: &mut &BStr) -> Result<String> {
+    till_line_ending
+        .verify(|s: &[_]| !s.is_empty())
+        .try_map(|s: &[_]| String::from_utf8(s.to_vec()))
+        .context(description("UTF-8 string"))
+        .parse_next(input)
+}
+
+/// Parses a non-empty filesystem path
+pub fn parse_path(input: &mut &BStr) -> Result<PathBuf> {
+    parse_string
+        .map(PathBuf::from)
+        .context(description("filesystem path"))
+        .parse_next(input)
+}

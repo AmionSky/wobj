@@ -1,11 +1,11 @@
 mod parser;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use ahash::RandomState;
-use indexmap::IndexSet;
 use smallvec::SmallVec;
 use winnow::{BStr, Parser};
+
+use crate::WobjError;
 
 #[derive(Debug, Default)]
 pub struct Obj {
@@ -16,27 +16,34 @@ pub struct Obj {
 }
 
 impl Obj {
-    pub fn parse<P: AsRef<Path>>(file: P) -> Result<Self, Box<dyn std::error::Error>> {
-        let obj = std::fs::read(file).unwrap();
-
-        match parser::parse_obj.parse(BStr::new(&obj)) {
-            Ok(obj) => Ok(obj),
-            Err(error) => {
-                eprintln!("{error}");
-                Err("error".into())
-            }
-        }
+    pub fn parse(bytes: &[u8]) -> Result<Self, WobjError> {
+        parser::parse_obj
+            .parse(BStr::new(bytes))
+            .map_err(WobjError::from)
     }
 
     pub fn objects(&self) -> &[Object] {
         &self.objects
     }
 
-    pub fn vertecies(&self) -> &[[f32; 3]] {
+    pub fn vertices(&self) -> &[[f32; 3]] {
         &self.vertex
     }
 
-    pub fn mesh(&self, faces: &[Face]) -> (Indicies, Vertices) {
+    pub fn normals(&self) -> &[[f32; 3]] {
+        &self.normal
+    }
+
+    pub fn uvs(&self) -> &[[f32; 2]] {
+        &self.texture
+    }
+
+    #[cfg(feature = "trimesh")]
+    /// Create a triangulated mesh from faces
+    pub fn trimesh(&self, faces: &[Face]) -> (Indicies, Vertices) {
+        use ahash::RandomState;
+        use indexmap::IndexSet;
+
         let mut indices = Vec::with_capacity(faces.len() * 3);
         let mut points = IndexSet::with_capacity_and_hasher(faces.len() * 3, RandomState::new());
 
@@ -88,9 +95,11 @@ impl Obj {
     }
 }
 
+#[cfg(feature = "trimesh")]
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Indicies(pub Vec<usize>);
 
+#[cfg(feature = "trimesh")]
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Vertices {
     pub positions: Vec<[f32; 3]>,
@@ -113,10 +122,29 @@ impl Object {
         self.name.as_ref()
     }
 
+    pub fn material(&self) -> Option<&String> {
+        self.material.as_ref()
+    }
+
+    pub fn mtllib(&self) -> Option<&PathBuf> {
+        self.mtllib.as_ref()
+    }
+
+    pub fn groups(&self) -> &[String] {
+        &self.groups
+    }
+
+    pub fn smoothing(&self) -> u32 {
+        self.smoothing
+    }
+
     pub fn faces(&self) -> &[Face] {
         &self.faces
     }
 }
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Face(SmallVec<[FacePoint<usize>; 3]>);
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 struct FacePoint<T> {
@@ -124,6 +152,3 @@ struct FacePoint<T> {
     t: Option<T>,
     n: Option<T>,
 }
-
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Face(SmallVec<[FacePoint<usize>; 4]>);

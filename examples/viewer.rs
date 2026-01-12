@@ -23,10 +23,11 @@ async fn main() {
 }
 
 fn render_obj(scene: &mut SceneNode3d, path: &str) {
-    let obj = Obj::parse(path).unwrap();
+    let file = std::fs::read(path).unwrap();
+    let obj = Obj::parse(&file).unwrap();
 
     for object in obj.objects() {
-        let (indices, vertices) = obj.mesh(object.faces());
+        let (indices, vertices) = obj.trimesh(object.faces());
 
         let faces = indices
             .0

@@ -1,13 +1,12 @@
 use std::num::NonZero;
-use std::path::PathBuf;
 
 use smallvec::SmallVec;
-use winnow::ascii::{dec_int, dec_uint, float, till_line_ending};
+use winnow::ascii::{dec_int, dec_uint, float};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated};
 use winnow::{BStr, Result, prelude::*};
 
 use super::{Face, FacePoint, Obj, Object};
-use crate::util::{description, label, to_next_line, word};
+use crate::util::{label, parse_path, parse_string, to_next_line, word};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     let mut obj = Obj::default();
@@ -122,7 +121,7 @@ fn parse_face(input: &mut &BStr, obj: &Obj) -> Result<Face> {
         }
     }
 
-    let face: SmallVec<[_; 4]> = points
+    let face: SmallVec<_> = points
         .into_iter()
         .map(|FacePoint { v, t, n }| {
             let v = calc_index(v, obj.vertex.len());
@@ -161,23 +160,6 @@ fn parse_groups(input: &mut &BStr) -> Result<Vec<String>> {
 
 fn parse_smoothing(input: &mut &BStr) -> Result<u32> {
     alt((dec_uint, "off".value(0))).parse_next(input)
-}
-
-/// Parses a non-empty UTF-8 string
-fn parse_string(input: &mut &BStr) -> Result<String> {
-    till_line_ending
-        .verify(|s: &[_]| !s.is_empty())
-        .try_map(|s: &[_]| String::from_utf8(s.to_vec()))
-        .context(description("UTF-8 string"))
-        .parse_next(input)
-}
-
-/// Parses a non-empty filesystem path
-fn parse_path(input: &mut &BStr) -> Result<PathBuf> {
-    parse_string
-        .map(PathBuf::from)
-        .context(description("filesystem path"))
-        .parse_next(input)
 }
 
 #[cfg(test)]

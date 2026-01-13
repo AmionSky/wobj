@@ -2,6 +2,12 @@
 name = "wobj"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/AmionSky/wobj"
+description = "Wavefront OBJ polygonal geometry and MTL material parser library"
+keywords = ["obj", "wavefront", "parser", "decoder", "3d", "graphics"]
+categories = ["game-development", "graphics", "encoding"]
+exclude = ["/examples"]
 
 [dependencies]
 winnow = "0.7.14"
@@ -11,4 +17,4 @@ indexmap = { version = "2.13.0", optional = true }
 
 [features]
 default = ["trimesh"]
-trimesh = ["dep:indexmap"]
+trimesh = ["dep:indexmap"] # Helper to generate triangulated meshes

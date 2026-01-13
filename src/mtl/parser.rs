@@ -5,9 +5,10 @@ use winnow::ascii::{dec_uint, float, till_line_ending};
 use winnow::combinator::{
     alt, delimited, dispatch, fail, opt, preceded, repeat, separated_pair, terminated,
 };
+use winnow::error::{ContextError, FromExternalError};
 use winnow::{BStr, Result, prelude::*};
 
-use super::{Channel, ColorValue, MapOption, Material, TextureMap};
+use super::{Channel, ColorValue, MapOption, Material, Refl, TextureMap};
 use crate::util::{expected, ignoreable, label, parse_path, to_next_line, word};
 
 pub(crate) fn parse_mtl(input: &mut &BStr) -> Result<HashMap<String, Material>> {
@@ -147,11 +148,30 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
                     .context(label("anti-aliasing (map_aat)"))
                     .parse_next(input)?
             }
-            b"relf" => material.relf.push(
-                parse_relf
-                    .context(label("reflection map (relf)"))
-                    .parse_next(input)?,
-            ),
+            b"refl" => {
+                let (shape, map) = parse_relf
+                    .context(label("reflection map (refl)"))
+                    .parse_next(input)?;
+
+                match shape {
+                    b"sphere" => {
+                        material.reflection = Some(Refl::Sphere(map));
+                    }
+                    cube_side => {
+                        let side = String::from_utf8(cube_side.to_vec())
+                            .map_err(|e| ContextError::from_external_error(input, e))?;
+
+                        if let Some(Refl::Cube(sides)) = &mut material.reflection {
+                            sides.insert(side, map);
+                        } else {
+                            let mut hashmap = HashMap::default();
+                            hashmap.insert(side, map);
+                            material.reflection = Some(Refl::Cube(hashmap))
+                        }
+                    }
+                }
+            }
+
             b"Pr" => {
                 material.roughness = Some(
                     float
@@ -357,10 +377,13 @@ fn parse_uv_turbulance(input: &mut &BStr) -> Result<MapOption> {
         .parse_next(input)
 }
 
-fn parse_relf(input: &mut &BStr) -> Result<(String, TextureMap)> {
-    let shape = delimited("-type ", word, ' ')
-        .try_map(|s| String::from_utf8(s.to_vec()))
-        .parse_next(input)?;
+fn parse_relf<'a>(input: &mut &'a BStr) -> Result<(&'a [u8], TextureMap)> {
+    let shape = alt((
+        delimited("-type ", "sphere", ' '),
+        delimited("-type cube_", word, ' '),
+    ))
+    .parse_next(input)?;
+
     let map = parse_map.parse_next(input)?;
     Ok((shape, map))
 }

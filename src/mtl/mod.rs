@@ -78,7 +78,7 @@ pub struct Material {
     pub anti_aliasing: bool,
 
     /// (refl) reflection map (type, map)
-    pub relf: Vec<(String, TextureMap)>,
+    pub reflection: Option<Refl>,
 
     /// (Pr) roughness
     pub roughness: Option<f32>,

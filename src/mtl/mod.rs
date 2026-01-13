@@ -127,9 +127,24 @@ impl ColorValue {
 }
 
 #[derive(Debug, Clone)]
-pub struct TextureMap {
-    pub path: PathBuf,
-    pub options: Vec<MapOption>,
+pub struct TextureMap(Box<(PathBuf, Vec<MapOption>)>);
+
+impl TextureMap {
+    fn new(path: PathBuf, options: Vec<MapOption>) -> Self {
+        Self(Box::new((path, options)))
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        &self.0.0
+    }
+
+    pub fn options(&self) -> &[MapOption] {
+        &self.0.1
+    }
+
+    pub fn take(self) -> (PathBuf, Vec<MapOption>) {
+        *self.0
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -173,5 +188,5 @@ pub enum Channel {
 #[derive(Debug, Clone)]
 pub enum Refl {
     Sphere(TextureMap),
-    Cube(HashMap<String, TextureMap>)
+    Cube(HashMap<String, TextureMap>),
 }

@@ -321,7 +321,7 @@ fn parse_spectral(input: &mut &BStr) -> Result<ColorValue> {
 fn parse_map(input: &mut &BStr) -> Result<TextureMap> {
     let options = repeat(0.., terminated(parse_map_option, ' ')).parse_next(input)?;
     let path = parse_path.parse_next(input)?;
-    Ok(TextureMap { path, options })
+    Ok(TextureMap::new(path, options))
 }
 
 fn parse_map_option(input: &mut &BStr) -> Result<MapOption> {

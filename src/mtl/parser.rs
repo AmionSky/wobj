@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
+use ahash::HashMap;
 use winnow::ascii::{dec_uint, float, till_line_ending};
 use winnow::combinator::{
     alt, delimited, dispatch, fail, opt, preceded, repeat, separated_pair, terminated,
@@ -11,7 +11,7 @@ use super::{Channel, ColorValue, MapOption, Material, TextureMap};
 use crate::util::{expected, ignoreable, label, parse_path, to_next_line, word};
 
 pub(crate) fn parse_mtl(input: &mut &BStr) -> Result<HashMap<String, Material>> {
-    let mut materials = HashMap::new();
+    let mut materials = HashMap::default();
 
     while let Ok(name) = parse_name(input) {
         let material = parse_material(input)?;

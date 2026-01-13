@@ -1,8 +1,8 @@
 mod parser;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
+use ahash::HashMap;
 use winnow::{BStr, Parser};
 
 use crate::WobjError;
@@ -168,4 +168,10 @@ pub enum Channel {
     Matte,
     Luminance,
     ZDepth,
+}
+
+#[derive(Debug, Clone)]
+pub enum Refl {
+    Sphere(TextureMap),
+    Cube(HashMap<String, TextureMap>)
 }

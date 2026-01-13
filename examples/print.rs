@@ -23,8 +23,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     for object in obj.objects() {
         println!(
             "    {}: material: {}, face count: {}",
-            object.name().map(|s| s.as_str()).unwrap_or("<none>"),
-            object.material().map(|s| s.as_str()).unwrap_or("<none>"),
+            object.name().unwrap_or("<none>"),
+            object.material().unwrap_or("<none>"),
             object.faces().len()
         );
 
@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut meshes = Vec::new();
         for object in obj.objects() {
             meshes.push((
-                object.name().map(|s| s.as_str()).unwrap_or("<none>"),
+                object.name().unwrap_or("<none>"),
                 obj.trimesh(object.faces()),
             ));
         }

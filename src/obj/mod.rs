@@ -2,7 +2,6 @@ mod parser;
 
 use std::path::PathBuf;
 
-use smallvec::SmallVec;
 use winnow::{BStr, Parser};
 
 use crate::WobjError;
@@ -40,58 +39,103 @@ impl Obj {
 
     #[cfg(feature = "trimesh")]
     /// Create a triangulated mesh from faces
-    pub fn trimesh(&self, faces: &[Face]) -> (Indicies, Vertices) {
+    pub fn trimesh(&self, faces: &Faces) -> (Indicies, Vertices) {
+        use std::hash::Hash;
+
         use ahash::RandomState;
         use indexmap::IndexSet;
 
         let mut indices = Vec::with_capacity(faces.len() * 3);
-        let mut points = IndexSet::with_capacity_and_hasher(faces.len() * 3, RandomState::new());
 
-        // de-duplicate the points
-        let mut insert = |point: FacePoint<usize>| {
-            let (index, _) = points.insert_full(point);
-            indices.push(index);
+        fn collect<T>(indices: &mut Vec<usize>, faces: &Vec<Vec<T>>) -> IndexSet<T, RandomState>
+        where
+            T: Clone + Hash + Eq,
+        {
+            let mut points = IndexSet::with_capacity_and_hasher(indices.len(), RandomState::new());
+
+            // Triangulate faces
+            for face in faces {
+                // the parser guarantees that there are at least 3 points
+                for i in 2..face.len() {
+                    let (a, b, c) = (0, i - 1, i);
+                    indices.push(points.insert_full(face[a].clone()).0);
+                    indices.push(points.insert_full(face[b].clone()).0);
+                    indices.push(points.insert_full(face[c].clone()).0);
+                }
+            }
+
+            points
+        }
+
+        // Turn point indexes into vertices
+        let vertices = match faces {
+            Faces::V(faces) => {
+                let points = collect(&mut indices, faces);
+
+                let mut positions = Vec::with_capacity(points.len());
+                for v in points {
+                    positions.push(self.vertex[v]);
+                }
+
+                Vertices {
+                    positions,
+                    normals: None,
+                    uvs: None,
+                }
+            }
+            Faces::VT(faces) => {
+                let points = collect(&mut indices, faces);
+
+                let mut positions = Vec::with_capacity(points.len());
+                let mut uvs = Vec::with_capacity(points.len());
+                for (v, t) in points {
+                    positions.push(self.vertex[v]);
+                    uvs.push(self.texture[t]);
+                }
+
+                Vertices {
+                    positions,
+                    normals: None,
+                    uvs: Some(uvs),
+                }
+            }
+            Faces::VN(faces) => {
+                let points = collect(&mut indices, faces);
+
+                let mut positions = Vec::with_capacity(points.len());
+                let mut normals = Vec::with_capacity(points.len());
+                for (v, n) in points {
+                    positions.push(self.vertex[v]);
+                    normals.push(self.normal[n]);
+                }
+
+                Vertices {
+                    positions,
+                    normals: Some(normals),
+                    uvs: None,
+                }
+            }
+            Faces::VTN(faces) => {
+                let points = collect(&mut indices, faces);
+
+                let mut positions = Vec::with_capacity(points.len());
+                let mut normals = Vec::with_capacity(points.len());
+                let mut uvs = Vec::with_capacity(points.len());
+                for (v, t, n) in points {
+                    positions.push(self.vertex[v]);
+                    normals.push(self.normal[n]);
+                    uvs.push(self.texture[t]);
+                }
+
+                Vertices {
+                    positions,
+                    normals: Some(normals),
+                    uvs: Some(uvs),
+                }
+            }
         };
 
-        // Triangulate faces
-        for Face(face) in faces {
-            // the parser guarantees that there are at least 3 points
-            for i in 2..face.len() {
-                let (a, b, c) = (0, i - 1, i);
-                insert(face[a].clone());
-                insert(face[b].clone());
-                insert(face[c].clone());
-            }
-        }
-
-        let count = points.len();
-        let has_normals = points.first().and_then(|p| p.n).is_some();
-        let has_texture = points.first().and_then(|p| p.t).is_some();
-
-        let mut v = Vec::with_capacity(points.len());
-        let mut n = Vec::with_capacity(if has_normals { count } else { 0 });
-        let mut t = Vec::with_capacity(if has_texture { count } else { 0 });
-
-        for point in points.into_iter() {
-            v.push(self.vertex[point.v]);
-
-            if has_normals && let Some(index) = point.n {
-                n.push(self.normal[index]);
-            }
-
-            if has_texture && let Some(index) = point.t {
-                t.push(self.texture[index]);
-            }
-        }
-
-        (
-            Indicies(indices),
-            Vertices {
-                positions: v,
-                normals: if n.len() == count { Some(n) } else { None },
-                uvs: if t.len() == count { Some(t) } else { None },
-            },
-        )
+        (Indicies(indices), vertices)
     }
 }
 
@@ -114,16 +158,16 @@ pub struct Object {
     mtllib: Option<PathBuf>,
     groups: Vec<String>,
     smoothing: u32,
-    faces: Vec<Face>,
+    faces: Option<Faces>,
 }
 
 impl Object {
-    pub fn name(&self) -> Option<&String> {
-        self.name.as_ref()
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
 
-    pub fn material(&self) -> Option<&String> {
-        self.material.as_ref()
+    pub fn material(&self) -> Option<&str> {
+        self.material.as_deref()
     }
 
     pub fn mtllib(&self) -> Option<&PathBuf> {
@@ -138,17 +182,37 @@ impl Object {
         self.smoothing
     }
 
-    pub fn faces(&self) -> &[Face] {
-        &self.faces
+    pub fn faces(&self) -> &Faces {
+        // self.faces is garanteed by the parser to be valid
+        self.faces.as_ref().unwrap()
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Face(SmallVec<[FacePoint<usize>; 3]>);
+// Faces<Points<Index...>>
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Faces {
+    V(Vec<Vec<usize>>),
+    VT(Vec<Vec<(usize, usize)>>),
+    VN(Vec<Vec<(usize, usize)>>),
+    VTN(Vec<Vec<(usize, usize, usize)>>),
+}
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-struct FacePoint<T> {
-    v: T,
-    t: Option<T>,
-    n: Option<T>,
+impl Faces {
+    pub const fn len(&self) -> usize {
+        match self {
+            Faces::V(faces) => faces.len(),
+            Faces::VT(faces) => faces.len(),
+            Faces::VN(faces) => faces.len(),
+            Faces::VTN(faces) => faces.len(),
+        }
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        match self {
+            Faces::V(faces) => faces.is_empty(),
+            Faces::VT(faces) => faces.is_empty(),
+            Faces::VN(faces) => faces.is_empty(),
+            Faces::VTN(faces) => faces.is_empty(),
+        }
+    }
 }

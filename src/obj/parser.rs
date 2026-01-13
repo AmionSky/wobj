@@ -1,11 +1,11 @@
 use std::num::NonZero;
 
-use smallvec::SmallVec;
 use winnow::ascii::{dec_int, dec_uint, float};
-use winnow::combinator::{alt, delimited, opt, preceded, separated};
+use winnow::combinator::{alt, delimited, opt, preceded, separated, separated_pair, seq};
+use winnow::error::ContextError;
 use winnow::{BStr, Result, prelude::*};
 
-use super::{Face, FacePoint, Obj, Object};
+use super::{Faces, Obj, Object};
 use crate::util::{ignoreable, label, parse_path, parse_string, to_next_line, word};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
@@ -13,9 +13,9 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     let mut current = Object::default();
 
     fn check_finalize(current: &mut Object, obj: &mut Obj) {
-        if !current.faces.is_empty() {
+        if current.faces.is_some() {
             obj.objects.push(current.clone());
-            current.faces.clear();
+            current.faces = None;
         }
     }
 
@@ -36,7 +36,21 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                     .context(label("vertex texture"))
                     .parse_next(input)?,
             ),
-            b"f" => current.faces.push(parse_face(input, &obj)?),
+            b"f" => match &mut current.faces {
+                Some(faces) => match faces {
+                    Faces::V(list) => list.push(parse_face_v(obj.vertex.len()).parse_next(input)?),
+                    Faces::VT(list) => list.push(
+                        parse_face_vt(obj.vertex.len(), obj.texture.len()).parse_next(input)?,
+                    ),
+                    Faces::VN(list) => list
+                        .push(parse_face_vn(obj.vertex.len(), obj.normal.len()).parse_next(input)?),
+                    Faces::VTN(list) => list.push(
+                        parse_face_vtn(obj.vertex.len(), obj.texture.len(), obj.normal.len())
+                            .parse_next(input)?,
+                    ),
+                },
+                None => current.faces = Some(parse_face_start(input, &obj)?),
+            },
             b"g" => {
                 check_finalize(&mut current, &mut obj);
                 current.groups = parse_groups
@@ -79,7 +93,7 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
         to_next_line(input)?;
     }
 
-    if !current.faces.is_empty() {
+    if current.faces.is_some() {
         obj.objects.push(current);
     }
 
@@ -99,50 +113,82 @@ fn parse_float3(input: &mut &BStr) -> Result<[f32; 3]> {
 }
 
 fn parse_vt(input: &mut &BStr) -> Result<[f32; 2]> {
-    let (u, v) = (float, opt(preceded(' ', float))).parse_next(input)?;
-    Ok([u, v.unwrap_or(0.0)])
+    (float, opt(preceded(' ', float)))
+        .map(|(u, v)| [u, v.unwrap_or(0.0)])
+        .parse_next(input)
 }
 
-fn parse_face(input: &mut &BStr, obj: &Obj) -> Result<Face> {
-    let points: Vec<_> = separated(3.., parse_face_point, ' ')
-        .context(label("element face"))
-        .parse_next(input)?;
+fn parse_face_start(input: &mut &BStr, obj: &Obj) -> Result<Faces> {
+    let vlen = obj.vertex.len();
+    let tlen = obj.texture.len();
+    let nlen = obj.normal.len();
 
-    fn calc_index(i: NonZero<isize>, len: usize) -> usize {
-        match i.is_positive() {
-            // Get the zeroed index
-            true => (i.get() - 1) as usize,
-            // Calculate from relative index
-            false => len.saturating_add_signed(i.get()),
-        }
+    alt((
+        parse_face_vtn(vlen, tlen, nlen).map(|v: Vec<_>| Faces::VTN(vec![v])),
+        parse_face_vn(vlen, nlen).map(|v: Vec<_>| Faces::VN(vec![v])),
+        parse_face_vt(vlen, tlen).map(|v: Vec<_>| Faces::VT(vec![v])),
+        parse_face_v(vlen).map(|v: Vec<_>| Faces::V(vec![v])),
+    ))
+    .parse_next(input)
+}
+
+fn calc_index(i: NonZero<isize>, len: usize) -> usize {
+    match i.is_positive() {
+        // Get the zeroed index
+        true => (i.get() - 1) as usize,
+        // Calculate from relative index
+        false => len.saturating_add_signed(i.get()),
     }
-
-    let face: SmallVec<_> = points
-        .into_iter()
-        .map(|FacePoint { v, t, n }| {
-            let v = calc_index(v, obj.vertex.len());
-            let t = t.map(|i| calc_index(i, obj.texture.len()));
-            let n = n.map(|i| calc_index(i, obj.normal.len()));
-            FacePoint { v, t, n }
-        })
-        .collect();
-
-    Ok(Face(face))
 }
 
-fn parse_index(input: &mut &BStr) -> Result<NonZero<isize>> {
-    dec_int.verify_map(NonZero::new).parse_next(input)
+fn parse_index<'a>(len: usize) -> impl Parser<&'a BStr, usize, ContextError> {
+    dec_int
+        .verify_map(NonZero::new)
+        .map(move |i| calc_index(i, len))
 }
 
-fn parse_face_point(input: &mut &BStr) -> Result<FacePoint<NonZero<isize>>> {
-    let (v, t, n) = (
-        parse_index,
-        opt(preceded('/', parse_index)),
-        opt(preceded(alt(("//", "/")), parse_index)),
+fn parse_face_v<'a>(vlen: usize) -> impl Parser<&'a BStr, Vec<usize>, ContextError> {
+    separated(3.., parse_index(vlen), ' ')
+}
+
+fn parse_face_vt<'a>(
+    vlen: usize,
+    tlen: usize,
+) -> impl Parser<&'a BStr, Vec<(usize, usize)>, ContextError> {
+    separated(
+        3..,
+        separated_pair(parse_index(vlen), '/', parse_index(tlen)),
+        ' ',
     )
-        .parse_next(input)?;
+}
 
-    Ok(FacePoint { v, t, n })
+fn parse_face_vn<'a>(
+    vlen: usize,
+    nlen: usize,
+) -> impl Parser<&'a BStr, Vec<(usize, usize)>, ContextError> {
+    separated(
+        3..,
+        separated_pair(parse_index(vlen), "//", parse_index(nlen)),
+        ' ',
+    )
+}
+
+fn parse_face_vtn<'a>(
+    vlen: usize,
+    tlen: usize,
+    nlen: usize,
+) -> impl Parser<&'a BStr, Vec<(usize, usize, usize)>, ContextError> {
+    separated(
+        3..,
+        seq!(
+            parse_index(vlen),
+            _: '/',
+            parse_index(tlen),
+            _: '/',
+            parse_index(nlen),
+        ),
+        ' ',
+    )
 }
 
 fn parse_groups(input: &mut &BStr) -> Result<Vec<String>> {
@@ -161,41 +207,6 @@ fn parse_smoothing(input: &mut &BStr) -> Result<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use smallvec::smallvec;
-
-    impl<T> FacePoint<T> {
-        fn v(v: T) -> Self {
-            Self {
-                v,
-                t: None,
-                n: None,
-            }
-        }
-
-        fn vt(v: T, t: T) -> Self {
-            Self {
-                v,
-                t: Some(t),
-                n: None,
-            }
-        }
-
-        fn vn(v: T, n: T) -> Self {
-            Self {
-                v,
-                t: None,
-                n: Some(n),
-            }
-        }
-
-        fn vtn(v: T, t: T, n: T) -> Self {
-            Self {
-                v,
-                t: Some(t),
-                n: Some(n),
-            }
-        }
-    }
 
     #[test]
     fn face_parsing() {
@@ -205,87 +216,37 @@ mod tests {
         obj.texture.append(&mut [[1.0, 2.0]].repeat(3));
 
         assert_eq!(
-            parse_face(&mut BStr::new("1 2 3"), &obj).unwrap(),
-            Face(smallvec!(FacePoint::v(0), FacePoint::v(1), FacePoint::v(2)))
+            parse_face_start(&mut BStr::new("1 2 3"), &obj).unwrap(),
+            Faces::V(vec!(vec!(0, 1, 2)))
         );
         assert_eq!(
-            parse_face(&mut BStr::new("1/3 2/2 3/1"), &obj).unwrap(),
-            Face(smallvec!(
-                FacePoint::vt(0, 2),
-                FacePoint::vt(1, 1),
-                FacePoint::vt(2, 0)
-            ))
+            parse_face_start(&mut BStr::new("1/3 2/2 3/1"), &obj).unwrap(),
+            Faces::VT(vec!(vec!((0, 2), (1, 1), (2, 0))))
         );
         assert_eq!(
-            parse_face(&mut BStr::new("1//3 2//2 3//1"), &obj).unwrap(),
-            Face(smallvec!(
-                FacePoint::vn(0, 2),
-                FacePoint::vn(1, 1),
-                FacePoint::vn(2, 0)
-            ))
+            parse_face_start(&mut BStr::new("1//3 2//2 3//1"), &obj).unwrap(),
+            Faces::VN(vec!(vec!((0, 2), (1, 1), (2, 0))))
         );
         assert_eq!(
-            parse_face(&mut BStr::new("1/2/3 2/3/1 3/1/2"), &obj).unwrap(),
-            Face(smallvec!(
-                FacePoint::vtn(0, 1, 2),
-                FacePoint::vtn(1, 2, 0),
-                FacePoint::vtn(2, 0, 1)
-            ))
+            parse_face_start(&mut BStr::new("1/2/3 2/3/1 3/1/2"), &obj).unwrap(),
+            Faces::VTN(vec!(vec!((0, 1, 2), (1, 2, 0), (2, 0, 1))))
         );
         assert_eq!(
-            parse_face(&mut BStr::new("-1 -2 -3"), &obj).unwrap(),
-            Face(smallvec!(FacePoint::v(2), FacePoint::v(1), FacePoint::v(0)))
+            parse_face_start(&mut BStr::new("-1 -2 -3"), &obj).unwrap(),
+            Faces::V(vec!(vec!(2, 1, 0)))
         );
 
-        assert!(parse_face(&mut BStr::new(" "), &obj).is_err());
-        assert!(parse_face(&mut BStr::new("1"), &obj).is_err());
-        assert!(parse_face(&mut BStr::new("1 2"), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new(" "), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new("1"), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new("1 2"), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new("1 e 2"), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new("1 2 /3"), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new("1/2 2 3/2"), &obj).is_err());
 
         assert_ne!(
-            parse_face(&mut BStr::new("1 2 3"), &obj).unwrap(),
-            Face(smallvec!(FacePoint::v(2), FacePoint::v(1), FacePoint::v(0)))
+            parse_face_start(&mut BStr::new("1 2 3"), &obj).unwrap(),
+            Faces::V(vec!(vec!(2, 1, 0)))
         );
-    }
-
-    #[test]
-    fn face_point_parsing() {
-        // Check correct
-        assert_eq!(
-            parse_face_point.parse(BStr::new("1")).unwrap(),
-            FacePoint::v(NonZero::new(1).unwrap())
-        );
-        assert_eq!(
-            parse_face_point.parse(BStr::new("1/2")).unwrap(),
-            FacePoint::vt(NonZero::new(1).unwrap(), NonZero::new(2).unwrap())
-        );
-        assert_eq!(
-            parse_face_point.parse(BStr::new("1//3")).unwrap(),
-            FacePoint::vn(NonZero::new(1).unwrap(), NonZero::new(3).unwrap())
-        );
-        assert_eq!(
-            parse_face_point.parse(BStr::new("1/2/3")).unwrap(),
-            FacePoint::vtn(
-                NonZero::new(1).unwrap(),
-                NonZero::new(2).unwrap(),
-                NonZero::new(3).unwrap()
-            )
-        );
-
-        // Check incorrect
-        assert!(parse_face_point.parse(BStr::new("1/")).is_err());
-        assert!(parse_face_point.parse(BStr::new("1//")).is_err());
-        assert!(parse_face_point.parse(BStr::new("/2/")).is_err());
-        assert!(parse_face_point.parse(BStr::new("//3")).is_err());
-        assert!(parse_face_point.parse(BStr::new("/2/3")).is_err());
-        assert!(parse_face_point.parse(BStr::new("//")).is_err());
-        assert!(parse_face_point.parse(BStr::new("/")).is_err());
-        assert!(parse_face_point.parse(BStr::new("")).is_err());
-        assert!(parse_face_point.parse(BStr::new("1/e/3")).is_err());
-        assert!(parse_face_point.parse(BStr::new("1/2/e")).is_err());
-        assert!(parse_face_point.parse(BStr::new("1//e")).is_err());
-        assert!(parse_face_point.parse(BStr::new("1/e")).is_err());
-        assert!(parse_face_point.parse(BStr::new("1.0")).is_err());
-        assert!(parse_face_point.parse(BStr::new("0")).is_err());
     }
 
     #[test]

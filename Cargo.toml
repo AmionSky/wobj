@@ -11,7 +11,6 @@ exclude = ["/examples"]
 
 [dependencies]
 winnow = "0.7.14"
-smallvec = "1.15.1"
 ahash = "0.8.12"
 indexmap = { version = "2.13.0", optional = true }
 

@@ -62,11 +62,8 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
                 )
             }
             b"d" => {
-                let (factor, halo) = parse_dissolve
-                    .context(label("dissolve (d)"))
-                    .parse_next(input)?;
-                material.dissolve = Some(factor);
-                material.halo = Some(halo);
+                material.halo = opt("-halo ").parse_next(input)?.is_some();
+                material.dissolve = Some(float.context(label("dissolve (d)")).parse_next(input)?);
             }
             b"Tr" => {
                 material.dissolve = Some(
@@ -146,11 +143,9 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
                 )
             }
             b"map_aat" => {
-                material.aa_map = Some(
-                    parse_on_off
-                        .context(label("anti-aliasing (map_aat)"))
-                        .parse_next(input)?,
-                )
+                material.anti_aliasing = parse_on_off
+                    .context(label("anti-aliasing (map_aat)"))
+                    .parse_next(input)?
             }
             b"relf" => material.relf.push(
                 parse_relf
@@ -273,9 +268,9 @@ fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
 
 fn parse_color_value(input: &mut &BStr) -> Result<ColorValue> {
     alt((
+        parse_float3o.map(ColorValue::rgb),
         preceded("spectral ", parse_spectral),
-        preceded("xyz ", parse_xyz),
-        parse_rgb,
+        preceded("xyz ", parse_float3o.map(ColorValue::xyz)),
     ))
     .context(expected("r g b"))
     .context(expected("spectral file.rfl factor"))
@@ -283,21 +278,9 @@ fn parse_color_value(input: &mut &BStr) -> Result<ColorValue> {
     .parse_next(input)
 }
 
-fn parse_trifloat(input: &mut &BStr) -> Result<(f32, f32, f32)> {
-    (float, opt((' ', float, ' ', float)))
-        .map(|(a, o)| o.map(|(_, b, _, c)| (a, b, c)).unwrap_or((a, a, a)))
-        .parse_next(input)
-}
-
-fn parse_rgb(input: &mut &BStr) -> Result<ColorValue> {
-    parse_trifloat
-        .map(|(r, g, b)| ColorValue::RGB(r, g, b))
-        .parse_next(input)
-}
-
-fn parse_xyz(input: &mut &BStr) -> Result<ColorValue> {
-    parse_trifloat
-        .map(|(x, y, z)| ColorValue::XYZ(x, y, z))
+fn parse_float3o(input: &mut &BStr) -> Result<(f32, f32, f32)> {
+    (float, opt((preceded(' ', float), preceded(' ', float))))
+        .map(|(a, o)| o.map(|(b, c)| (a, b, c)).unwrap_or((a, a, a)))
         .parse_next(input)
 }
 
@@ -309,18 +292,10 @@ fn parse_spectral(input: &mut &BStr) -> Result<ColorValue> {
         till_line_ending.map(|file| (file, 1.0)),
     ))
     // Convert file str to path
-    .try_map(|(file, factor)| str::from_utf8(file).map(|s| (PathBuf::from(s), factor)))
+    .try_map(|(file, factor)| str::from_utf8(file).map(|s| (Box::new(PathBuf::from(s)), factor)))
     .parse_next(input)?;
 
     Ok(ColorValue::Spectral { file, factor })
-}
-
-fn parse_dissolve(input: &mut &BStr) -> Result<(f32, bool)> {
-    alt((
-        preceded("-halo ", float).map(|f| (f, true)),
-        float.map(|f| (f, false)),
-    ))
-    .parse_next(input)
 }
 
 fn parse_map(input: &mut &BStr) -> Result<TextureMap> {

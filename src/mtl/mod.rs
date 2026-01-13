@@ -50,7 +50,7 @@ pub struct Material {
     /// (d/Tr) dissolve factor
     pub dissolve: Option<f32>,
     /// (d -halo) dissolve halo
-    pub halo: Option<bool>,
+    pub halo: bool,
     /// (Ns) specular exponent
     pub exponent: Option<f32>,
     /// (sharpness) reflection sharpness
@@ -75,7 +75,7 @@ pub struct Material {
     /// (bump/map_bump) bump texture
     pub bump_map: Option<TextureMap>,
     /// (map_aat) texture anti-aliasing
-    pub aa_map: Option<bool>,
+    pub anti_aliasing: bool,
 
     /// (refl) reflection map (type, map)
     pub relf: Vec<(String, TextureMap)>,
@@ -113,7 +113,17 @@ pub struct Material {
 pub enum ColorValue {
     RGB(f32, f32, f32),
     XYZ(f32, f32, f32),
-    Spectral { file: PathBuf, factor: f32 },
+    Spectral { file: Box<PathBuf>, factor: f32 },
+}
+
+impl ColorValue {
+    fn rgb(v: (f32, f32, f32)) -> Self {
+        Self::RGB(v.0, v.1, v.2)
+    }
+
+    fn xyz(v: (f32, f32, f32)) -> Self {
+        Self::XYZ(v.0, v.1, v.2)
+    }
 }
 
 #[derive(Debug, Clone)]

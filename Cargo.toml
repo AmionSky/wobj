@@ -5,7 +5,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/AmionSky/wobj"
 description = "Wavefront OBJ polygonal geometry and MTL material parser library"
-keywords = ["obj", "wavefront", "parser", "decoder", "3d", "graphics"]
+keywords = ["obj", "wavefront", "parser", "3d", "graphics"]
 categories = ["game-development", "graphics", "encoding"]
 exclude = ["/examples"]
 

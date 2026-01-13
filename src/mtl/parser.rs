@@ -26,29 +26,29 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
     let mut material = Material::default();
 
     while let Ok(key) = keyword(input) {
-        match key {
-            b"Ka" => {
+        match key.to_ascii_lowercase().as_slice() {
+            b"ka" => {
                 material.ambient = Some(
                     parse_color_value
                         .context(label("ambient (Ka)"))
                         .parse_next(input)?,
                 )
             }
-            b"Kd" => {
+            b"kd" => {
                 material.diffuse = Some(
                     parse_color_value
                         .context(label("diffuse (Kd)"))
                         .parse_next(input)?,
                 )
             }
-            b"Ks" => {
+            b"ks" => {
                 material.specular = Some(
                     parse_color_value
                         .context(label("specular (Ks)"))
                         .parse_next(input)?,
                 )
             }
-            b"Tf" => {
+            b"tf" => {
                 material.filter = Some(
                     parse_color_value
                         .context(label("transmission filter (Tf)"))
@@ -66,49 +66,49 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
                 material.halo = opt("-halo ").parse_next(input)?.is_some();
                 material.dissolve = Some(float.context(label("dissolve (d)")).parse_next(input)?);
             }
-            b"Tr" => {
+            b"tr" => {
                 material.dissolve = Some(
                     1.0 - float::<_, f32, _>
                         .context(label("dissolve (Tr)"))
                         .parse_next(input)?,
                 )
             }
-            b"Ns" => {
+            b"ns" => {
                 material.exponent = Some(
                     float
                         .context(label("specular exponent (Ns)"))
                         .parse_next(input)?,
                 )
             }
-            b"Ni" => {
+            b"ni" => {
                 material.density = Some(
                     float
                         .context(label("optical density (Ni)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Ka" => {
+            b"map_ka" => {
                 material.ambient_map = Some(
                     parse_map
                         .context(label("ambient texture (map_Ka)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Kd" => {
+            b"map_kd" => {
                 material.diffuse_map = Some(
                     parse_map
                         .context(label("diffuse texture (map_Kd)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Ks" => {
+            b"map_ks" => {
                 material.specular_map = Some(
                     parse_map
                         .context(label("specular texture (map_Ks)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Ns" => {
+            b"map_ns" => {
                 material.exponent_map = Some(
                     parse_map
                         .context(label("specular exponent texture (map_Ns)"))
@@ -172,42 +172,42 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
                 }
             }
 
-            b"Pr" => {
+            b"pr" => {
                 material.roughness = Some(
                     float
                         .context(label("PBR roughness (Pr)"))
                         .parse_next(input)?,
                 )
             }
-            b"Pm" => {
+            b"pm" => {
                 material.metallic = Some(
                     float
                         .context(label("PBR metallic (Pm)"))
                         .parse_next(input)?,
                 )
             }
-            b"Ps" => {
+            b"ps" => {
                 material.sheen = Some(
                     float
                         .context(label("PBR sheen value (Ps)"))
                         .parse_next(input)?,
                 )
             }
-            b"Pc" => {
+            b"pc" => {
                 material.cc_thickness = Some(
                     float
                         .context(label("PBR clearcoat thickness (Pc)"))
                         .parse_next(input)?,
                 )
             }
-            b"Pcr" => {
+            b"pcr" => {
                 material.cc_roughness = Some(
                     float
                         .context(label("PBR clearcoat roughness (Pcr)"))
                         .parse_next(input)?,
                 )
             }
-            b"Ke" => {
+            b"ke" => {
                 material.emissive = Some(
                     float
                         .context(label("PBR emissive (Ke)"))
@@ -228,28 +228,28 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
                         .parse_next(input)?,
                 )
             }
-            b"map_Pr" => {
+            b"map_pr" => {
                 material.roughness_map = Some(
                     parse_map
                         .context(label("roughness texture (map_Pr)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Pm" => {
+            b"map_pm" => {
                 material.metallic_map = Some(
                     parse_map
                         .context(label("metallic texture (map_Pm)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Ps" => {
+            b"map_ps" => {
                 material.sheen_map = Some(
                     parse_map
                         .context(label("sheen texture (map_Ps)"))
                         .parse_next(input)?,
                 )
             }
-            b"map_Ke" => {
+            b"map_ke" => {
                 material.emissive_map = Some(
                     parse_map
                         .context(label("emissive texture (map_Ke)"))

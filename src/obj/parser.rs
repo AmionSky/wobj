@@ -5,66 +5,62 @@ use winnow::combinator::{alt, delimited, opt, preceded, separated, separated_pai
 use winnow::error::ContextError;
 use winnow::{BStr, Result, prelude::*};
 
-use super::{Faces, Obj, Object};
+use super::{Faces, MeshData, Obj, VertexData};
 use crate::util::{ignoreable, label, parse_path, parse_string, to_next_line, word};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
-    let mut obj = Obj::default();
-    let mut current = Object::default();
+    let mut data = VertexData::default();
+    let mut meshes = Vec::new();
+    let mut current = MeshData::default();
 
-    fn check_finalize(current: &mut Object, obj: &mut Obj) {
+    // Check if the current mesh needs to be added to meshes
+    let mut check = |current: &mut MeshData| {
         if current.faces.is_some() {
-            obj.objects.push(current.clone());
+            meshes.push(current.clone());
             current.faces = None;
         }
-    }
+    };
 
     while let Ok(key) = keyword(input) {
         match key {
-            b"v" => obj.vertex.push(
+            b"v" => data.vertex.push(
                 parse_float3
                     .context(label("vertex geometry"))
                     .parse_next(input)?,
             ),
-            b"vn" => obj.normal.push(
+            b"vn" => data.normal.push(
                 parse_float3
                     .context(label("vertex normal"))
                     .parse_next(input)?,
             ),
-            b"vt" => obj.texture.push(
+            b"vt" => data.texture.push(
                 parse_vt
                     .context(label("vertex texture"))
                     .parse_next(input)?,
             ),
             b"f" => match &mut current.faces {
                 Some(faces) => match faces {
-                    Faces::V(list) => list.push(parse_face_v(obj.vertex.len()).parse_next(input)?),
-                    Faces::VT(list) => list.push(
-                        parse_face_vt(obj.vertex.len(), obj.texture.len()).parse_next(input)?,
-                    ),
-                    Faces::VN(list) => list
-                        .push(parse_face_vn(obj.vertex.len(), obj.normal.len()).parse_next(input)?),
-                    Faces::VTN(list) => list.push(
-                        parse_face_vtn(obj.vertex.len(), obj.texture.len(), obj.normal.len())
-                            .parse_next(input)?,
-                    ),
+                    Faces::V(list) => list.push(parse_face_v(&data).parse_next(input)?),
+                    Faces::VT(list) => list.push(parse_face_vt(&data).parse_next(input)?),
+                    Faces::VN(list) => list.push(parse_face_vn(&data).parse_next(input)?),
+                    Faces::VTN(list) => list.push(parse_face_vtn(&data).parse_next(input)?),
                 },
-                None => current.faces = Some(parse_face_start(input, &obj)?),
+                None => current.faces = Some(parse_face_start(input, &data)?),
             },
             b"g" => {
-                check_finalize(&mut current, &mut obj);
+                check(&mut current);
                 current.groups = parse_groups
                     .context(label("attribute group"))
                     .parse_next(input)?;
             }
             b"s" => {
-                check_finalize(&mut current, &mut obj);
+                check(&mut current);
                 current.smoothing = parse_smoothing
                     .context(label("attribute smoothing group"))
                     .parse_next(input)?;
             }
             b"o" => {
-                check_finalize(&mut current, &mut obj);
+                check(&mut current);
                 current.name = Some(
                     parse_string
                         .context(label("attribute object name"))
@@ -72,7 +68,7 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                 );
             }
             b"mtllib" => {
-                check_finalize(&mut current, &mut obj);
+                check(&mut current);
                 current.mtllib = Some(
                     parse_path
                         .context(label("attribute mtllib"))
@@ -80,7 +76,7 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
                 );
             }
             b"usemtl" => {
-                check_finalize(&mut current, &mut obj);
+                check(&mut current);
                 current.material = Some(
                     parse_string
                         .context(label("attribute material"))
@@ -94,10 +90,10 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     }
 
     if current.faces.is_some() {
-        obj.objects.push(current);
+        meshes.push(current);
     }
 
-    Ok(obj)
+    Ok(Obj { data, meshes })
 }
 
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
@@ -118,16 +114,12 @@ fn parse_vt(input: &mut &BStr) -> Result<[f32; 2]> {
         .parse_next(input)
 }
 
-fn parse_face_start(input: &mut &BStr, obj: &Obj) -> Result<Faces> {
-    let vlen = obj.vertex.len();
-    let tlen = obj.texture.len();
-    let nlen = obj.normal.len();
-
+fn parse_face_start(input: &mut &BStr, data: &VertexData) -> Result<Faces> {
     alt((
-        parse_face_vtn(vlen, tlen, nlen).map(|v: Vec<_>| Faces::VTN(vec![v])),
-        parse_face_vn(vlen, nlen).map(|v: Vec<_>| Faces::VN(vec![v])),
-        parse_face_vt(vlen, tlen).map(|v: Vec<_>| Faces::VT(vec![v])),
-        parse_face_v(vlen).map(|v: Vec<_>| Faces::V(vec![v])),
+        parse_face_vtn(data).map(|v: Vec<_>| Faces::VTN(vec![v])),
+        parse_face_vn(data).map(|v: Vec<_>| Faces::VN(vec![v])),
+        parse_face_vt(data).map(|v: Vec<_>| Faces::VT(vec![v])),
+        parse_face_v(data).map(|v: Vec<_>| Faces::V(vec![v])),
     ))
     .parse_next(input)
 }
@@ -147,45 +139,49 @@ fn parse_index<'a>(len: usize) -> impl Parser<&'a BStr, usize, ContextError> {
         .map(move |i| calc_index(i, len))
 }
 
-fn parse_face_v<'a>(vlen: usize) -> impl Parser<&'a BStr, Vec<usize>, ContextError> {
-    separated(3.., parse_index(vlen), ' ')
+fn parse_face_v<'a>(data: &VertexData) -> impl Parser<&'a BStr, Vec<usize>, ContextError> {
+    separated(3.., parse_index(data.vertex.len()), ' ')
 }
 
 fn parse_face_vt<'a>(
-    vlen: usize,
-    tlen: usize,
+    data: &VertexData,
 ) -> impl Parser<&'a BStr, Vec<(usize, usize)>, ContextError> {
     separated(
         3..,
-        separated_pair(parse_index(vlen), '/', parse_index(tlen)),
+        separated_pair(
+            parse_index(data.vertex.len()),
+            '/',
+            parse_index(data.texture.len()),
+        ),
         ' ',
     )
 }
 
 fn parse_face_vn<'a>(
-    vlen: usize,
-    nlen: usize,
+    data: &VertexData,
 ) -> impl Parser<&'a BStr, Vec<(usize, usize)>, ContextError> {
     separated(
         3..,
-        separated_pair(parse_index(vlen), "//", parse_index(nlen)),
+        separated_pair(
+            parse_index(data.vertex.len()),
+            "//",
+            parse_index(data.normal.len()),
+        ),
         ' ',
     )
 }
 
 fn parse_face_vtn<'a>(
-    vlen: usize,
-    tlen: usize,
-    nlen: usize,
+    data: &VertexData,
 ) -> impl Parser<&'a BStr, Vec<(usize, usize, usize)>, ContextError> {
     separated(
         3..,
         seq!(
-            parse_index(vlen),
+            parse_index(data.vertex.len()),
             _: '/',
-            parse_index(tlen),
+            parse_index(data.texture.len()),
             _: '/',
-            parse_index(nlen),
+            parse_index(data.normal.len()),
         ),
         ' ',
     )
@@ -210,41 +206,41 @@ mod tests {
 
     #[test]
     fn face_parsing() {
-        let mut obj = Obj::default();
-        obj.vertex.append(&mut [[1.0, 2.0, 3.0]].repeat(3));
-        obj.normal.append(&mut [[1.0, 2.0, 3.0]].repeat(3));
-        obj.texture.append(&mut [[1.0, 2.0]].repeat(3));
+        let mut data = VertexData::default();
+        data.vertex.append(&mut [[1.0, 2.0, 3.0]].repeat(3));
+        data.normal.append(&mut [[1.0, 2.0, 3.0]].repeat(3));
+        data.texture.append(&mut [[1.0, 2.0]].repeat(3));
 
         assert_eq!(
-            parse_face_start(&mut BStr::new("1 2 3"), &obj).unwrap(),
+            parse_face_start(&mut BStr::new("1 2 3"), &data).unwrap(),
             Faces::V(vec!(vec!(0, 1, 2)))
         );
         assert_eq!(
-            parse_face_start(&mut BStr::new("1/3 2/2 3/1"), &obj).unwrap(),
+            parse_face_start(&mut BStr::new("1/3 2/2 3/1"), &data).unwrap(),
             Faces::VT(vec!(vec!((0, 2), (1, 1), (2, 0))))
         );
         assert_eq!(
-            parse_face_start(&mut BStr::new("1//3 2//2 3//1"), &obj).unwrap(),
+            parse_face_start(&mut BStr::new("1//3 2//2 3//1"), &data).unwrap(),
             Faces::VN(vec!(vec!((0, 2), (1, 1), (2, 0))))
         );
         assert_eq!(
-            parse_face_start(&mut BStr::new("1/2/3 2/3/1 3/1/2"), &obj).unwrap(),
+            parse_face_start(&mut BStr::new("1/2/3 2/3/1 3/1/2"), &data).unwrap(),
             Faces::VTN(vec!(vec!((0, 1, 2), (1, 2, 0), (2, 0, 1))))
         );
         assert_eq!(
-            parse_face_start(&mut BStr::new("-1 -2 -3"), &obj).unwrap(),
+            parse_face_start(&mut BStr::new("-1 -2 -3"), &data).unwrap(),
             Faces::V(vec!(vec!(2, 1, 0)))
         );
 
-        assert!(parse_face_start(&mut BStr::new(" "), &obj).is_err());
-        assert!(parse_face_start(&mut BStr::new("1"), &obj).is_err());
-        assert!(parse_face_start(&mut BStr::new("1 2"), &obj).is_err());
-        assert!(parse_face_start(&mut BStr::new("1 e 2"), &obj).is_err());
-        assert!(parse_face_start(&mut BStr::new("1 2 /3"), &obj).is_err());
-        assert!(parse_face_start(&mut BStr::new("1/2 2 3/2"), &obj).is_err());
+        assert!(parse_face_start(&mut BStr::new(" "), &data).is_err());
+        assert!(parse_face_start(&mut BStr::new("1"), &data).is_err());
+        assert!(parse_face_start(&mut BStr::new("1 2"), &data).is_err());
+        assert!(parse_face_start(&mut BStr::new("1 e 2"), &data).is_err());
+        assert!(parse_face_start(&mut BStr::new("1 2 /3"), &data).is_err());
+        assert!(parse_face_start(&mut BStr::new("1/2 2 3/2"), &data).is_err());
 
         assert_ne!(
-            parse_face_start(&mut BStr::new("1 2 3"), &obj).unwrap(),
+            parse_face_start(&mut BStr::new("1 2 3"), &data).unwrap(),
             Faces::V(vec!(vec!(2, 1, 0)))
         );
     }

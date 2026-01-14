@@ -20,16 +20,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Print OBJ object stats and collect MTL files
     println!("  Objects:");
     let mut mtl_files = HashSet::new();
-    for object in obj.objects() {
+    for mesh in obj.meshes() {
         println!(
             "    {}: material: {}, face count: {}",
-            object.name().unwrap_or("<none>"),
-            object.material().unwrap_or("<none>"),
-            object.faces().len()
+            mesh.name().unwrap_or("<none>"),
+            mesh.material().unwrap_or("<none>"),
+            mesh.faces().len()
         );
 
-        if let Some(mtllib) = object.mtllib() {
-            mtl_files.insert(mtllib.clone());
+        if let Some(mtllib) = mesh.mtllib() {
+            mtl_files.insert(mtllib.to_path_buf());
         }
     }
 
@@ -37,10 +37,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let obj_dir = path.parent().expect("Path had no parent");
     for mtl_path in mtl_files {
-        let mtl_file = std::fs::read(obj_dir.join(&mtl_path)).unwrap();
+        let file = std::fs::read(obj_dir.join(&mtl_path)).unwrap();
 
         let now = Instant::now();
-        let mtl = wobj::Mtl::parse(&mtl_file)?;
+        let mtl = wobj::Mtl::parse(&file)?;
         let load_time = now.elapsed();
 
         println!("MTL: ({})", mtl_path.display());
@@ -59,10 +59,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let now = Instant::now();
         let mut meshes = Vec::new();
-        for object in obj.objects() {
+        for mesh in obj.meshes() {
             meshes.push((
-                object.name().unwrap_or("<none>"),
-                obj.trimesh(object.faces()),
+                mesh.name().unwrap_or("<none>").to_string(),
+                mesh.triangulate(),
             ));
         }
         let load_time = now.elapsed();

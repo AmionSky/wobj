@@ -31,7 +31,7 @@ impl<'obj> ObjMesh<'obj> {
     }
 
     pub fn faces(&self) -> &Faces {
-        // self.faces is garanteed by the parser to be valid
+        // 'faces' is guaranteed by the parser to be valid
         self.mesh.faces.as_ref().unwrap()
     }
 

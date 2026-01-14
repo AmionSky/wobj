@@ -209,7 +209,7 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
             }
             b"ke" => {
                 material.emissive = Some(
-                    float
+                    parse_color_value
                         .context(label("PBR emissive (Ke)"))
                         .parse_next(input)?,
                 )

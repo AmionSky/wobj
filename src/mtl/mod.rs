@@ -91,7 +91,7 @@ pub struct Material {
     /// (Pcr) clearcoat roughness
     pub cc_roughness: Option<f32>,
     /// (Ke) emissive
-    pub emissive: Option<f32>,
+    pub emissive: Option<ColorValue>,
     /// (aniso) anisotropy
     pub anisotropy: Option<f32>,
     /// (anisor) anisotropy rotation

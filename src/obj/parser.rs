@@ -1,6 +1,6 @@
 use std::num::NonZero;
 
-use winnow::ascii::{dec_int, dec_uint, float};
+use winnow::ascii::{dec_int, dec_uint, float, space1};
 use winnow::combinator::{alt, delimited, opt, preceded, separated, separated_pair, seq};
 use winnow::error::ContextError;
 use winnow::{BStr, Result, prelude::*};
@@ -97,19 +97,19 @@ pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
 }
 
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
-    delimited(ignoreable, word, ' ')
+    delimited(ignoreable, word, space1)
         .context(label("keyword"))
         .parse_next(input)
 }
 
 fn parse_float3(input: &mut &BStr) -> Result<[f32; 3]> {
-    (float, ' ', float, ' ', float)
+    (float, space1, float, space1, float)
         .map(|(x, _, y, _, z)| [x, y, z])
         .parse_next(input)
 }
 
 fn parse_vt(input: &mut &BStr) -> Result<[f32; 2]> {
-    (float, opt(preceded(' ', float)))
+    (float, opt(preceded(space1, float)))
         .map(|(u, v)| [u, v.unwrap_or(0.0)])
         .parse_next(input)
 }
@@ -140,7 +140,7 @@ fn parse_index<'a>(len: usize) -> impl Parser<&'a BStr, usize, ContextError> {
 }
 
 fn parse_face_v<'a>(data: &VertexData) -> impl Parser<&'a BStr, Vec<usize>, ContextError> {
-    separated(3.., parse_index(data.vertex.len()), ' ')
+    separated(3.., parse_index(data.vertex.len()), space1)
 }
 
 fn parse_face_vt<'a>(
@@ -153,7 +153,7 @@ fn parse_face_vt<'a>(
             '/',
             parse_index(data.texture.len()),
         ),
-        ' ',
+        space1,
     )
 }
 
@@ -167,7 +167,7 @@ fn parse_face_vn<'a>(
             "//",
             parse_index(data.normal.len()),
         ),
-        ' ',
+        space1,
     )
 }
 
@@ -183,7 +183,7 @@ fn parse_face_vtn<'a>(
             _: '/',
             parse_index(data.normal.len()),
         ),
-        ' ',
+        space1,
     )
 }
 
@@ -191,7 +191,7 @@ fn parse_groups(input: &mut &BStr) -> Result<Vec<String>> {
     separated(
         1..,
         word.try_map(|s: &[_]| String::from_utf8(s.to_vec())),
-        ' ',
+        space1,
     )
     .parse_next(input)
 }

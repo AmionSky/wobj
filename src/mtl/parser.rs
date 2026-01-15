@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use ahash::HashMap;
-use winnow::ascii::{dec_uint, float, till_line_ending};
+use winnow::ascii::{dec_uint, float, space1, till_line_ending};
 use winnow::combinator::{
     alt, delimited, dispatch, fail, opt, preceded, repeat, separated_pair, terminated,
 };
@@ -280,7 +280,7 @@ fn parse_name(input: &mut &BStr) -> Result<String> {
 }
 
 fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
-    delimited(ignoreable, word, ' ')
+    delimited(ignoreable, word, space1)
         .verify(|k: &[_]| k != b"newmtl")
         .context(label("keyword"))
         .parse_next(input)
@@ -299,7 +299,7 @@ fn parse_color_value(input: &mut &BStr) -> Result<ColorValue> {
 }
 
 fn parse_float3o(input: &mut &BStr) -> Result<(f32, f32, f32)> {
-    (float, opt((preceded(' ', float), preceded(' ', float))))
+    (float, opt((preceded(space1, float), preceded(space1, float))))
         .map(|(a, o)| o.map(|(b, c)| (a, b, c)).unwrap_or((a, a, a)))
         .parse_next(input)
 }
@@ -307,7 +307,7 @@ fn parse_float3o(input: &mut &BStr) -> Result<(f32, f32, f32)> {
 fn parse_spectral(input: &mut &BStr) -> Result<ColorValue> {
     let (file, factor) = alt((
         // With factor
-        separated_pair(word, ' ', float),
+        separated_pair(word, space1, float),
         // Without factor
         till_line_ending.map(|file| (file, 1.0)),
     ))
@@ -319,13 +319,13 @@ fn parse_spectral(input: &mut &BStr) -> Result<ColorValue> {
 }
 
 fn parse_map(input: &mut &BStr) -> Result<TextureMap> {
-    let options = repeat(0.., terminated(parse_map_option, ' ')).parse_next(input)?;
+    let options = repeat(0.., terminated(parse_map_option, space1)).parse_next(input)?;
     let path = parse_path.parse_next(input)?;
     Ok(TextureMap::new(path, options))
 }
 
 fn parse_map_option(input: &mut &BStr) -> Result<MapOption> {
-    dispatch! { delimited('-', word, ' ');
+    dispatch! { delimited('-', word, space1);
         b"blendu" => parse_on_off.map(MapOption::BlendU),
         b"blendv" => parse_on_off.map(MapOption::BlendV),
         b"bm" => float.map(MapOption::BumpMultiplier),
@@ -360,27 +360,27 @@ fn parse_channel(input: &mut &BStr) -> Result<Channel> {
 }
 
 fn parse_uv_offset(input: &mut &BStr) -> Result<MapOption> {
-    (float, opt(preceded(' ', float)), opt(preceded(' ', float)))
+    (float, opt(preceded(space1, float)), opt(preceded(space1, float)))
         .map(|(u, v, w)| MapOption::Offset(u, v.unwrap_or(0.0), w.unwrap_or(0.0)))
         .parse_next(input)
 }
 
 fn parse_uv_scale(input: &mut &BStr) -> Result<MapOption> {
-    (float, opt(preceded(' ', float)), opt(preceded(' ', float)))
+    (float, opt(preceded(space1, float)), opt(preceded(space1, float)))
         .map(|(u, v, w)| MapOption::Scale(u, v.unwrap_or(1.0), w.unwrap_or(1.0)))
         .parse_next(input)
 }
 
 fn parse_uv_turbulance(input: &mut &BStr) -> Result<MapOption> {
-    (float, opt(preceded(' ', float)), opt(preceded(' ', float)))
+    (float, opt(preceded(space1, float)), opt(preceded(space1, float)))
         .map(|(u, v, w)| MapOption::Turbulence(u, v.unwrap_or(0.0), w.unwrap_or(0.0)))
         .parse_next(input)
 }
 
 fn parse_relf<'a>(input: &mut &'a BStr) -> Result<(&'a [u8], TextureMap)> {
     let shape = alt((
-        delimited("-type ", "sphere", ' '),
-        delimited("-type cube_", word, ' '),
+        delimited("-type ", "sphere", space1),
+        delimited("-type cube_", word, space1),
     ))
     .parse_next(input)?;
 

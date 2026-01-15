@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         for mesh in obj.meshes() {
             meshes.push((
                 mesh.name().unwrap_or("<none>").to_string(),
-                mesh.triangulate(),
+                mesh.triangulate().unwrap(),
             ));
         }
         let load_time = now.elapsed();

@@ -37,7 +37,7 @@ impl<'obj> ObjMesh<'obj> {
 
     #[cfg(feature = "trimesh")]
     /// Create a triangulated mesh from faces
-    pub fn triangulate(&self) -> (Indicies, Vertices) {
+    pub fn triangulate(&self) -> Result<(Indicies, Vertices), &'static str> {
         use std::hash::Hash;
 
         use ahash::RandomState;
@@ -66,6 +66,10 @@ impl<'obj> ObjMesh<'obj> {
             points
         }
 
+        const ERROR_OOB_VERTEX: &str = "vertex index is out of range";
+        const ERROR_OOB_NORMAL: &str = "normal index is out of range";
+        const ERROR_OOB_UV: &str = "uv index is out of range";
+
         // Turn point indexes into vertices
         let vertices = match faces {
             Faces::V(faces) => {
@@ -73,7 +77,7 @@ impl<'obj> ObjMesh<'obj> {
 
                 let mut positions = Vec::with_capacity(points.len());
                 for v in points {
-                    positions.push(self.data.vertex[v]);
+                    positions.push(*self.data.vertex.get(v).ok_or(ERROR_OOB_VERTEX)?);
                 }
 
                 Vertices {
@@ -88,8 +92,8 @@ impl<'obj> ObjMesh<'obj> {
                 let mut positions = Vec::with_capacity(points.len());
                 let mut uvs = Vec::with_capacity(points.len());
                 for (v, t) in points {
-                    positions.push(self.data.vertex[v]);
-                    uvs.push(self.data.texture[t]);
+                    positions.push(*self.data.vertex.get(v).ok_or(ERROR_OOB_VERTEX)?);
+                    uvs.push(*self.data.texture.get(t).ok_or(ERROR_OOB_UV)?);
                 }
 
                 Vertices {
@@ -104,8 +108,8 @@ impl<'obj> ObjMesh<'obj> {
                 let mut positions = Vec::with_capacity(points.len());
                 let mut normals = Vec::with_capacity(points.len());
                 for (v, n) in points {
-                    positions.push(self.data.vertex[v]);
-                    normals.push(self.data.normal[n]);
+                    positions.push(*self.data.vertex.get(v).ok_or(ERROR_OOB_VERTEX)?);
+                    normals.push(*self.data.normal.get(n).ok_or(ERROR_OOB_NORMAL)?);
                 }
 
                 Vertices {
@@ -121,9 +125,9 @@ impl<'obj> ObjMesh<'obj> {
                 let mut normals = Vec::with_capacity(points.len());
                 let mut uvs = Vec::with_capacity(points.len());
                 for (v, t, n) in points {
-                    positions.push(self.data.vertex[v]);
-                    normals.push(self.data.normal[n]);
-                    uvs.push(self.data.texture[t]);
+                    positions.push(*self.data.vertex.get(v).ok_or(ERROR_OOB_VERTEX)?);
+                    normals.push(*self.data.normal.get(n).ok_or(ERROR_OOB_NORMAL)?);
+                    uvs.push(*self.data.texture.get(t).ok_or(ERROR_OOB_UV)?);
                 }
 
                 Vertices {
@@ -134,7 +138,7 @@ impl<'obj> ObjMesh<'obj> {
             }
         };
 
-        (Indicies(indices), vertices)
+        Ok((Indicies(indices), vertices))
     }
 }
 

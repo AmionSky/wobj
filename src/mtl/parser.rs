@@ -299,7 +299,10 @@ fn parse_color_value(input: &mut &BStr) -> Result<ColorValue> {
 }
 
 fn parse_float3o(input: &mut &BStr) -> Result<(f32, f32, f32)> {
-    (float, opt((preceded(space1, float), preceded(space1, float))))
+    (
+        float,
+        opt((preceded(space1, float), preceded(space1, float))),
+    )
         .map(|(a, o)| o.map(|(b, c)| (a, b, c)).unwrap_or((a, a, a)))
         .parse_next(input)
 }
@@ -360,19 +363,31 @@ fn parse_channel(input: &mut &BStr) -> Result<Channel> {
 }
 
 fn parse_uv_offset(input: &mut &BStr) -> Result<MapOption> {
-    (float, opt(preceded(space1, float)), opt(preceded(space1, float)))
+    (
+        float,
+        opt(preceded(space1, float)),
+        opt(preceded(space1, float)),
+    )
         .map(|(u, v, w)| MapOption::Offset(u, v.unwrap_or(0.0), w.unwrap_or(0.0)))
         .parse_next(input)
 }
 
 fn parse_uv_scale(input: &mut &BStr) -> Result<MapOption> {
-    (float, opt(preceded(space1, float)), opt(preceded(space1, float)))
+    (
+        float,
+        opt(preceded(space1, float)),
+        opt(preceded(space1, float)),
+    )
         .map(|(u, v, w)| MapOption::Scale(u, v.unwrap_or(1.0), w.unwrap_or(1.0)))
         .parse_next(input)
 }
 
 fn parse_uv_turbulance(input: &mut &BStr) -> Result<MapOption> {
-    (float, opt(preceded(space1, float)), opt(preceded(space1, float)))
+    (
+        float,
+        opt(preceded(space1, float)),
+        opt(preceded(space1, float)),
+    )
         .map(|(u, v, w)| MapOption::Turbulence(u, v.unwrap_or(0.0), w.unwrap_or(0.0)))
         .parse_next(input)
 }

@@ -40,7 +40,15 @@ pub fn parse_string(input: &mut &BStr) -> Result<String> {
 
 /// Parses a non-empty filesystem path
 pub fn parse_path(input: &mut &BStr) -> Result<PathBuf> {
+    use std::path::{MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
+    const OTHER_SEPARATOR: char = match MAIN_SEPARATOR {
+        '/' => '\\',
+        _ => '/',
+    };
+
     parse_string
+        .map(|s| s.replace("\\\\", "\\"))
+        .map(|s| s.replace(OTHER_SEPARATOR, MAIN_SEPARATOR_STR))
         .map(PathBuf::from)
         .context(description("filesystem path"))
         .parse_next(input)

@@ -3,7 +3,13 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
+    if let Err(error) = run() {
+        eprintln!("Error: {error}");
+    }
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let path = PathBuf::from(std::env::args_os().nth(1).expect("No path was specified!"));
 
     let obj_file = std::fs::read(&path)?;

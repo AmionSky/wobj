@@ -275,7 +275,8 @@ fn parse_material(input: &mut &BStr) -> Result<Material> {
 fn parse_name(input: &mut &BStr) -> Result<String> {
     delimited(ignoreable, preceded("newmtl ", word), to_next_line)
         .try_map(|s| String::from_utf8(s.to_vec()))
-        .context(label("newmtl"))
+        .context(label("Material name statement"))
+        .context(expected("newmtl <name>"))
         .parse_next(input)
 }
 
@@ -362,32 +363,29 @@ fn parse_channel(input: &mut &BStr) -> Result<Channel> {
     .parse_next(input)
 }
 
-fn parse_uv_offset(input: &mut &BStr) -> Result<MapOption> {
+fn parse_float3oo(input: &mut &BStr) -> Result<(f32, Option<f32>, Option<f32>)> {
     (
         float,
         opt(preceded(space1, float)),
         opt(preceded(space1, float)),
     )
+        .parse_next(input)
+}
+
+fn parse_uv_offset(input: &mut &BStr) -> Result<MapOption> {
+    parse_float3oo
         .map(|(u, v, w)| MapOption::Offset(u, v.unwrap_or(0.0), w.unwrap_or(0.0)))
         .parse_next(input)
 }
 
 fn parse_uv_scale(input: &mut &BStr) -> Result<MapOption> {
-    (
-        float,
-        opt(preceded(space1, float)),
-        opt(preceded(space1, float)),
-    )
+    parse_float3oo
         .map(|(u, v, w)| MapOption::Scale(u, v.unwrap_or(1.0), w.unwrap_or(1.0)))
         .parse_next(input)
 }
 
 fn parse_uv_turbulance(input: &mut &BStr) -> Result<MapOption> {
-    (
-        float,
-        opt(preceded(space1, float)),
-        opt(preceded(space1, float)),
-    )
+    parse_float3oo
         .map(|(u, v, w)| MapOption::Turbulence(u, v.unwrap_or(0.0), w.unwrap_or(0.0)))
         .parse_next(input)
 }

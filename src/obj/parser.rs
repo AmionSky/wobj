@@ -6,7 +6,9 @@ use winnow::error::ContextError;
 use winnow::{BStr, Result, prelude::*};
 
 use super::{Faces, MeshData, Obj, VertexData};
-use crate::util::{ignoreable, label, parse_path, parse_string, to_next_line, word};
+use crate::util::{
+    description, expected, ignoreable, label, parse_path, parse_string, to_next_line, word,
+};
 
 pub(crate) fn parse_obj(input: &mut &BStr) -> Result<Obj> {
     let mut data = VertexData::default();
@@ -105,12 +107,16 @@ fn keyword<'a>(input: &mut &'a BStr) -> Result<&'a [u8]> {
 fn parse_float3(input: &mut &BStr) -> Result<[f32; 3]> {
     (float, space1, float, space1, float)
         .map(|(x, _, y, _, z)| [x, y, z])
+        .context(expected("x y z"))
+        .context(description("3 coordinates"))
         .parse_next(input)
 }
 
 fn parse_vt(input: &mut &BStr) -> Result<[f32; 2]> {
     (float, opt(preceded(space1, float)))
         .map(|(u, v)| [u, v.unwrap_or(0.0)])
+        .context(expected("u v"))
+        .context(description("texture coordinates"))
         .parse_next(input)
 }
 
@@ -141,6 +147,8 @@ fn parse_index<'a>(len: usize) -> impl Parser<&'a BStr, usize, ContextError> {
 
 fn parse_face_v<'a>(data: &VertexData) -> impl Parser<&'a BStr, Vec<usize>, ContextError> {
     separated(3.., parse_index(data.vertex.len()), space1)
+        .context(expected("v1 v2 v3 ..."))
+        .context(description("3 or more vertex indicies"))
 }
 
 fn parse_face_vt<'a>(
@@ -155,6 +163,8 @@ fn parse_face_vt<'a>(
         ),
         space1,
     )
+    .context(expected("v1/t1 v2/t2 v3/t3 ..."))
+    .context(description("3 or more vertex and texture indicies"))
 }
 
 fn parse_face_vn<'a>(
@@ -169,6 +179,8 @@ fn parse_face_vn<'a>(
         ),
         space1,
     )
+    .context(expected("v1//n1 v2//n2 v3//n3 ..."))
+    .context(description("3 or more vertex and normal indicies"))
 }
 
 fn parse_face_vtn<'a>(
@@ -185,6 +197,8 @@ fn parse_face_vtn<'a>(
         ),
         space1,
     )
+    .context(expected("v1/t1/n1 v2/t2/n2 v3/t3/n3 ..."))
+    .context(description("3 or more vertex, texture and normal indicies"))
 }
 
 fn parse_groups(input: &mut &BStr) -> Result<Vec<String>> {
@@ -193,11 +207,15 @@ fn parse_groups(input: &mut &BStr) -> Result<Vec<String>> {
         word.try_map(|s: &[_]| String::from_utf8(s.to_vec())),
         space1,
     )
+    .context(expected("group1 group2 ..."))
+    .context(description("list of group names"))
     .parse_next(input)
 }
 
 fn parse_smoothing(input: &mut &BStr) -> Result<u32> {
-    alt((dec_uint, "off".value(0))).parse_next(input)
+    alt((dec_uint, "off".value(0)))
+        .context(description("smoothing group number or 'off'"))
+        .parse_next(input)
 }
 
 #[cfg(test)]

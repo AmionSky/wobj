@@ -7,10 +7,12 @@ use winnow::{BStr, Parser};
 
 use crate::WobjError;
 
+/// Wavefront MTL data
 #[derive(Debug, Clone)]
 pub struct Mtl(HashMap<String, Material>);
 
 impl Mtl {
+    /// Parses MTL file data
     pub fn parse(bytes: &[u8]) -> Result<Self, WobjError> {
         parser::parse_mtl
             .parse(BStr::new(bytes))
@@ -22,19 +24,23 @@ impl Mtl {
         Self(materials)
     }
 
+    /// Gets the material with the specified name
     pub fn get(&self, name: &str) -> Option<&Material> {
         self.0.get(name)
     }
 
+    /// Gets the underlying HashMap
     pub fn inner(&self) -> &HashMap<String, Material> {
         &self.0
     }
 
+    /// Takes the underlying HashMap
     pub fn into_inner(self) -> HashMap<String, Material> {
         self.0
     }
 }
 
+/// Wavefront MTL material data
 #[derive(Debug, Default, Clone)]
 pub struct Material {
     /// (Ka) ambient reflectivity
@@ -109,10 +115,14 @@ pub struct Material {
     pub normal_map: Option<TextureMap>,
 }
 
+/// Color value
 #[derive(Debug, Clone)]
 pub enum ColorValue {
+    /// RGB values
     RGB(f32, f32, f32),
+    /// CIEXYZ values
     XYZ(f32, f32, f32),
+    /// Spectral curve via .rfl file
     Spectral { file: Box<PathBuf>, factor: f32 },
 }
 
@@ -126,6 +136,7 @@ impl ColorValue {
     }
 }
 
+/// Texture map
 #[derive(Debug, Clone)]
 pub struct TextureMap(Box<(PathBuf, Vec<MapOption>)>);
 
@@ -134,19 +145,23 @@ impl TextureMap {
         Self(Box::new((path, options)))
     }
 
+    /// Path to the texture file
     pub fn path(&self) -> &PathBuf {
         &self.0.0
     }
 
+    /// Modifier options
     pub fn options(&self) -> &[MapOption] {
         &self.0.1
     }
 
+    /// Takes the underlying data
     pub fn take(self) -> (PathBuf, Vec<MapOption>) {
         *self.0
     }
 }
 
+/// Texture map options
 #[derive(Debug, Clone)]
 pub enum MapOption {
     /// (blendu) horizontal blending
@@ -175,6 +190,7 @@ pub enum MapOption {
     Resolution(u16),
 }
 
+/// Texture map channel
 #[derive(Debug, Clone, Copy)]
 pub enum Channel {
     Red,
@@ -185,6 +201,7 @@ pub enum Channel {
     ZDepth,
 }
 
+/// Reflection map
 #[derive(Debug, Clone)]
 pub enum Refl {
     Sphere(TextureMap),

@@ -9,6 +9,12 @@ impl<I: winnow::stream::AsBStr, E: Display> From<winnow::error::ParseError<I, E>
     }
 }
 
+impl From<&str> for WobjError {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
 impl std::fmt::Display for WobjError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)

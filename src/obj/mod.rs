@@ -7,6 +7,7 @@ use winnow::{BStr, Parser};
 
 use crate::WobjError;
 
+/// Wavefont OBJ data
 #[derive(Debug)]
 pub struct Obj {
     data: VertexData,
@@ -14,12 +15,14 @@ pub struct Obj {
 }
 
 impl Obj {
+    /// Parses OBJ file data
     pub fn parse(bytes: &[u8]) -> Result<Self, WobjError> {
         parser::parse_obj
             .parse(BStr::new(bytes))
             .map_err(WobjError::from)
     }
 
+    /// List of all mesh objects
     pub fn meshes<'obj>(&'obj self) -> Vec<ObjMesh<'obj>> {
         self.meshes
             .iter()
@@ -27,14 +30,17 @@ impl Obj {
             .collect()
     }
 
+    /// All vertex positions
     pub fn vertices(&self) -> &[[f32; 3]] {
         &self.data.vertex
     }
 
+    /// All vertex normals
     pub fn normals(&self) -> &[[f32; 3]] {
         &self.data.normal
     }
 
+    /// All vertex uvs
     pub fn uvs(&self) -> &[[f32; 2]] {
         &self.data.texture
     }
@@ -57,12 +63,20 @@ struct MeshData {
     faces: Option<Faces>,
 }
 
-// Faces<Points<Index...>>
+/// Defines the faces of a mesh.
+/// 
+/// Contatins absolute 0-based indicies.
+/// 
+/// Structure: Faces<Points<Index...>>
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Faces {
+    /// Faces containing only vertex positions
     V(Vec<Vec<usize>>),
+    /// Faces containing vertex positions and uvs
     VT(Vec<Vec<(usize, usize)>>),
+    /// Faces containing vertex positions and normals
     VN(Vec<Vec<(usize, usize)>>),
+    /// Faces containing vertex positions, uvs and normals
     VTN(Vec<Vec<(usize, usize, usize)>>),
 }
 

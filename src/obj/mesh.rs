@@ -1,5 +1,6 @@
 use super::{Faces, MeshData, VertexData};
 
+/// OBJ mesh object
 pub struct ObjMesh<'obj> {
     data: &'obj VertexData,
     mesh: &'obj MeshData,
@@ -10,26 +11,32 @@ impl<'obj> ObjMesh<'obj> {
         Self { data, mesh }
     }
 
+    /// Name of the mesh object
     pub fn name(&self) -> Option<&str> {
         self.mesh.name.as_deref()
     }
 
+    /// Material name of the mesh object
     pub fn material(&self) -> Option<&str> {
         self.mesh.material.as_deref()
     }
 
+    /// Relative path to the material library of the mesh object
     pub fn mtllib(&self) -> Option<&std::path::Path> {
         self.mesh.mtllib.as_deref()
     }
 
+    /// Names of the groups associated with the mesh object
     pub fn groups(&self) -> &[String] {
         &self.mesh.groups
     }
 
+    /// Smoothing group of the mesh object
     pub fn smoothing(&self) -> u32 {
         self.mesh.smoothing
     }
 
+    /// Faces of the mesh object
     pub fn faces(&self) -> &Faces {
         // 'faces' is guaranteed by the parser to be valid
         self.mesh.faces.as_ref().unwrap()
@@ -37,7 +44,7 @@ impl<'obj> ObjMesh<'obj> {
 
     #[cfg(feature = "trimesh")]
     /// Create a triangulated mesh from faces
-    pub fn triangulate(&self) -> Result<(Indicies, Vertices), &'static str> {
+    pub fn triangulate(&self) -> Result<(Indicies, Vertices), crate::WobjError> {
         use std::hash::Hash;
 
         use ahash::RandomState;
@@ -143,13 +150,18 @@ impl<'obj> ObjMesh<'obj> {
 }
 
 #[cfg(feature = "trimesh")]
+/// Triangulated mesh indicies
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Indicies(pub Vec<usize>);
 
 #[cfg(feature = "trimesh")]
+/// Triangulated mesh verticies
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Vertices {
+    /// Vertex positions
     pub positions: Vec<[f32; 3]>,
+    /// Vertex normals
     pub normals: Option<Vec<[f32; 3]>>,
+    /// Vertex UVs
     pub uvs: Option<Vec<[f32; 2]>>,
 }
